@@ -30,7 +30,7 @@ html, body {
 body {
   background:
     linear-gradient(var(--bg-overlay-1), var(--bg-overlay-2)),
-    url('/background.jpg') center center / cover no-repeat fixed;
+    url('/background.png') center center / cover no-repeat fixed;
   min-height: 100vh;
 }
 
