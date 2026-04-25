@@ -152,7 +152,8 @@ export async function openItemDialog(
       ${fieldHtml({ label: 'Purchase date', name: 'purchase_date', type: 'date', value: existing?.purchase_date })}
       ${fieldHtml({ label: 'Purchase price', name: 'purchase_price_cents', type: 'currency', value: existing?.purchase_price_cents != null ? (existing.purchase_price_cents / 100).toFixed(2) : '' })}
       ${fieldHtml({ label: 'Current value', name: 'current_value_cents', type: 'currency', value: existing?.current_value_cents != null ? (existing.current_value_cents / 100).toFixed(2) : '' })}
-      ${fieldHtml({ label: 'Storage location', name: 'storage_location', value: existing?.storage_location, span: 2 })}
+      ${fieldHtml({ label: 'Source', name: 'source', value: existing?.source, placeholder: 'e.g. eBay, Facebook, gift' })}
+      ${fieldHtml({ label: 'Storage location', name: 'storage_location', value: existing?.storage_location })}
       ${fieldHtml({ label: 'Notes', name: 'notes', type: 'textarea', value: existing?.notes, span: 2 })}
     </div>
   `
@@ -180,6 +181,7 @@ export async function openItemDialog(
         purchase_price_cents: data['purchase_price_cents'] as number | null,
         current_value_cents: data['current_value_cents'] as number | null,
         storage_location: data['storage_location'] as string | null,
+        source: data['source'] as string | null,
         notes: data['notes'] as string | null
       }
       if (existing) await window.roundhouse.items.update(existing.id, payload)

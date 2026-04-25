@@ -66,6 +66,7 @@ export async function renderItemDetail(el: HTMLElement, params: Record<string, s
           ${field('Purchase price', fmtCents(item.purchase_price_cents))}
           ${field('Current value', fmtCents(item.current_value_cents))}
           ${field('Storage location', item.storage_location)}
+          ${field('Source', item.source)}
         </dl>
       </div>
 

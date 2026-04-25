@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS items (
   purchase_price_cents INTEGER,
   current_value_cents  INTEGER,
   storage_location     TEXT,
+  source               TEXT,
   notes                TEXT,
   created_at           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
@@ -50,6 +51,7 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE INDEX IF NOT EXISTS idx_items_set   ON items(set_id);
 CREATE INDEX IF NOT EXISTS idx_items_type  ON items(type);
 CREATE INDEX IF NOT EXISTS idx_items_scale ON items(scale);
+CREATE INDEX IF NOT EXISTS idx_items_source ON items(source);
 
 CREATE TABLE IF NOT EXISTS item_photos (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,

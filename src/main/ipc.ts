@@ -14,7 +14,7 @@ const ITEM_FIELDS = [
   'set_id', 'type', 'name', 'manufacturer', 'model_number', 'scale',
   'road_name', 'era', 'year', 'condition', 'original_box',
   'purchase_date', 'purchase_price_cents', 'current_value_cents',
-  'storage_location', 'notes'
+  'storage_location', 'source', 'notes'
 ] as const
 
 function buildUpdate<T extends Record<string, unknown>>(

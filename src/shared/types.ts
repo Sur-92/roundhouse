@@ -60,6 +60,7 @@ export interface Item {
   purchase_price_cents: number | null;
   current_value_cents: number | null;
   storage_location: string | null;
+  source: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
