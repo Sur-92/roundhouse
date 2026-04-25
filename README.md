@@ -28,15 +28,19 @@ The repo never contains user data.
 
 ## Development
 
-Requires Node 20+ and (on first run) a working C++ toolchain for `better-sqlite3`'s native build.
+Requires Node 20+. First-time setup uses a custom script because plain
+`npm install` runs `better-sqlite3`'s gyp build against the system Node,
+which we don't want — we rebuild it against Electron's ABI instead.
 
 ```bash
-npm install
+npm run setup        # first-time only: install + Electron binary + native rebuild
 npm run dev          # launches Electron with hot reload
 npm run typecheck    # strict TS check across main + renderer
 npm run build        # bundles to ./out
 npm run build:win    # produces a Windows installer in ./release
 ```
+
+If you ever blow away `node_modules`, run `npm run setup` again (not `npm install`).
 
 ## Security posture
 
