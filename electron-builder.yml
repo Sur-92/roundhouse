@@ -1,0 +1,32 @@
+appId: com.roadandrock.roundhouse
+productName: Roundhouse
+copyright: Copyright © 2026 Steve Beamesderfer
+
+directories:
+  buildResources: resources
+  output: release
+
+files:
+  - "out/**/*"
+  - "package.json"
+  - "!**/*.map"
+
+asarUnpack:
+  - "**/*.{node,dll}"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Roundhouse
+
+publish: null

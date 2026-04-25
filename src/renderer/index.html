@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' app: data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self';"
+    />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Roundhouse</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">◯</span>
+          <span class="brand-text">Roundhouse</span>
+        </div>
+        <nav class="tabs">
+          <a href="#/" data-route="/">Home</a>
+          <a href="#/collections" data-route="/collections">Collections</a>
+          <a href="#/sets" data-route="/sets">Sets</a>
+          <a href="#/items" data-route="/items">Items</a>
+        </nav>
+      </header>
+      <main id="view"></main>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
