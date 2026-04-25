@@ -1,7 +1,7 @@
-import { escapeHtml, on } from '../lib/dom'
+import { escapeHtml } from '../lib/dom'
 import { openDialog, confirmDialog } from '../lib/dialog'
 import { fieldHtml, readForm, SCALE_OPTIONS } from '../lib/forms'
-import { navigate } from '../router'
+import { wireRowTable, setRowHtml, setTableHead } from '../lib/rows'
 import type { TrainSet, TrainSetInput } from '@shared/types'
 
 export async function renderCollectionDetail(el: HTMLElement, params: Record<string, string>): Promise<void> {
@@ -26,69 +26,56 @@ export async function renderCollectionDetail(el: HTMLElement, params: Record<str
         </div>
         <button class="btn primary" data-action="new-set">New set</button>
       </header>
-      <div class="list" id="set-list"></div>
+      <div class="table-wrap">
+        <table class="rh-table" id="rows">
+          ${setTableHead(false)}
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
   `
 
-  const list = el.querySelector<HTMLDivElement>('#set-list')!
+  const table = el.querySelector<HTMLTableElement>('#rows')!
+  const tbody = table.querySelector('tbody')!
 
   const refresh = async (): Promise<void> => {
     const sets = await window.roundhouse.sets.list(id)
     if (!sets.length) {
-      list.innerHTML = `<p class="empty">No sets in this collection yet.</p>`
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No sets in this collection yet.</td></tr>`
       return
     }
-    const cards = await Promise.all(
+    const rows = await Promise.all(
       sets.map(async (s) => {
         const items = await window.roundhouse.items.list({ setId: s.id })
-        return `
-          <article class="card card-link">
-            <a class="card-body" href="#/sets/${s.id}">
-              <h3>${escapeHtml(s.name)}</h3>
-              <p class="card-meta">
-                ${s.scale ? `<span class="chip">${escapeHtml(s.scale)}</span>` : ''}
-                ${s.manufacturer ? `<span>${escapeHtml(s.manufacturer)}</span>` : ''}
-                ${s.era ? `<span>${escapeHtml(s.era)}</span>` : ''}
-              </p>
-              ${s.description ? `<p>${escapeHtml(s.description)}</p>` : ''}
-              <p class="card-meta">${items.length} item${items.length === 1 ? '' : 's'}</p>
-            </a>
-            <div class="card-actions">
-              <button class="icon-btn" data-action="edit" data-id="${s.id}" title="Edit">✎</button>
-              <button class="icon-btn danger" data-action="delete" data-id="${s.id}" title="Delete">🗑</button>
-            </div>
-          </article>`
+        return setRowHtml(s, { itemCount: items.length })
       })
     )
-    list.innerHTML = cards.join('')
+    tbody.innerHTML = rows.join('')
   }
 
   el.querySelector<HTMLButtonElement>('[data-action="new-set"]')!.addEventListener('click', async () => {
     if (await openSetDialog(undefined, id)) await refresh()
   })
 
-  on<HTMLButtonElement>(list, '[data-action="edit"]', 'click', async (_e, btn) => {
-    const setId = Number(btn.dataset['id'])
-    const s = await window.roundhouse.sets.get(setId)
-    if (s && (await openSetDialog(s, id))) await refresh()
-  })
-
-  on<HTMLButtonElement>(list, '[data-action="delete"]', 'click', async (_e, btn) => {
-    const setId = Number(btn.dataset['id'])
-    const s = await window.roundhouse.sets.get(setId)
-    if (!s) return
-    const ok = await confirmDialog(
-      `Delete "${s.name}"? Items in this set will be kept but un-assigned from the set.`,
-      { title: 'Delete set?', destructive: true }
-    )
-    if (ok) {
-      await window.roundhouse.sets.delete(setId)
-      await refresh()
+  wireRowTable(table, {
+    'edit-set': async (setId) => {
+      const s = await window.roundhouse.sets.get(setId)
+      if (s && (await openSetDialog(s, id))) await refresh()
+    },
+    'delete-set': async (setId) => {
+      const s = await window.roundhouse.sets.get(setId)
+      if (!s) return
+      const ok = await confirmDialog(
+        `Delete "${s.name}"? Items in this set will be kept but un-assigned from the set.`,
+        { title: 'Delete set?', destructive: true }
+      )
+      if (ok) {
+        await window.roundhouse.sets.delete(setId)
+        await refresh()
+      }
     }
   })
 
-  // Allow keyboard nav: pressing Enter on focused card → open
-  void navigate
   await refresh()
 }
 

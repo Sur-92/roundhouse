@@ -1,8 +1,8 @@
-import { escapeHtml, on, typeLabel, fmtCents } from '../lib/dom'
+import { escapeHtml } from '../lib/dom'
 import { confirmDialog } from '../lib/dialog'
 import { openSetDialog } from './collection-detail'
 import { openItemDialog } from './items'
-import type { Item } from '@shared/types'
+import { wireRowTable, itemRowHtml, ITEM_TABLE_HEAD } from '../lib/rows'
 
 export async function renderSetDetail(el: HTMLElement, params: Record<string, string>): Promise<void> {
   const id = Number(params['id'])
@@ -36,24 +36,30 @@ export async function renderSetDetail(el: HTMLElement, params: Record<string, st
           <button class="btn primary" data-action="new-item">New item</button>
         </div>
       </header>
-      <div class="list" id="item-list"></div>
+      <div class="table-wrap">
+        <table class="rh-table" id="rows">
+          ${ITEM_TABLE_HEAD}
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
   `
 
-  const list = el.querySelector<HTMLDivElement>('#item-list')!
+  const table = el.querySelector<HTMLTableElement>('#rows')!
+  const tbody = table.querySelector('tbody')!
 
   const refresh = async (): Promise<void> => {
     const items = await window.roundhouse.items.list({ setId: id })
     if (!items.length) {
-      list.innerHTML = `<p class="empty">No items in this set yet.</p>`
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No items in this set yet.</td></tr>`
       return
     }
-    list.innerHTML = items.map(renderItemCard).join('')
+    tbody.innerHTML = items.map(itemRowHtml).join('')
   }
 
   el.querySelector<HTMLButtonElement>('[data-action="edit-set"]')!.addEventListener('click', async () => {
     if (await openSetDialog(set, set.collection_id)) {
-      await renderSetDetail(el, params) // re-render
+      await renderSetDetail(el, params)
     }
   })
 
@@ -61,39 +67,20 @@ export async function renderSetDetail(el: HTMLElement, params: Record<string, st
     if (await openItemDialog(undefined, { setId: id, scale: set.scale })) await refresh()
   })
 
-  on<HTMLButtonElement>(list, '[data-action="delete"]', 'click', async (_e, btn) => {
-    const itemId = Number(btn.dataset['id'])
-    const item = await window.roundhouse.items.get(itemId)
-    if (!item) return
-    const ok = await confirmDialog(
-      `Delete "${item.name}"? All photos for this item will also be deleted.`,
-      { title: 'Delete item?', destructive: true }
-    )
-    if (ok) {
-      await window.roundhouse.items.delete(itemId)
-      await refresh()
+  wireRowTable(table, {
+    'delete-item': async (itemId) => {
+      const item = await window.roundhouse.items.get(itemId)
+      if (!item) return
+      const ok = await confirmDialog(
+        `Delete "${item.name}"? All photos for this item will also be deleted.`,
+        { title: 'Delete item?', destructive: true }
+      )
+      if (ok) {
+        await window.roundhouse.items.delete(itemId)
+        await refresh()
+      }
     }
   })
 
   await refresh()
-}
-
-function renderItemCard(item: Item): string {
-  return `
-    <article class="card card-link">
-      <a class="card-body" href="#/items/${item.id}">
-        <h3>${escapeHtml(item.name)}</h3>
-        <p class="card-meta">
-          <span class="chip chip-type">${escapeHtml(typeLabel(item.type))}</span>
-          ${item.scale ? `<span class="chip">${escapeHtml(item.scale)}</span>` : ''}
-          ${item.manufacturer ? `<span>${escapeHtml(item.manufacturer)}</span>` : ''}
-          ${item.model_number ? `<span>#${escapeHtml(item.model_number)}</span>` : ''}
-        </p>
-        ${item.road_name ? `<p>${escapeHtml(item.road_name)}</p>` : ''}
-        ${item.current_value_cents != null ? `<p class="card-meta">Value: ${fmtCents(item.current_value_cents)}</p>` : ''}
-      </a>
-      <div class="card-actions">
-        <button class="icon-btn danger" data-action="delete" data-id="${item.id}" title="Delete">🗑</button>
-      </div>
-    </article>`
 }

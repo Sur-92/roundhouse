@@ -520,6 +520,115 @@ main#view {
 
 .field-currency input:focus { background: transparent; }
 
+/* ─── Row table (items, sets) ─────────────────────────── */
+.table-wrap {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.rh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.rh-table thead th {
+  background: rgba(0, 0, 0, 0.25);
+  text-align: left;
+  padding: 0.55rem 0.85rem;
+  font-weight: 500;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.rh-table tbody td {
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.rh-table tbody tr:last-child td { border-bottom: none; }
+
+.rh-table tbody tr[data-href] {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.rh-table tbody tr[data-href]:hover {
+  background: rgba(216, 160, 90, 0.10);
+}
+
+.rh-table tbody tr[data-href]:hover .col-name { color: var(--accent); }
+
+.col-name {
+  font-weight: 500;
+  color: var(--text);
+  max-width: 0;          /* collapse + overflow trick for long names */
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.1s ease;
+}
+
+.col-mono {
+  font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.col-center { text-align: center; }
+
+.col-actions {
+  text-align: right;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.col-actions .icon-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 0.85rem;
+  opacity: 0.55;
+  transition: opacity 0.1s ease, background 0.1s ease, color 0.1s ease;
+}
+
+tr:hover .col-actions .icon-btn { opacity: 1; }
+
+.empty-row {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.filters-summary {
+  margin-left: auto;
+  align-self: center;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Compact chips inside dense tables */
+.rh-table .chip {
+  padding: 0.1rem 0.45rem;
+  font-size: 0.7rem;
+}
+
 /* ─── Item detail ─────────────────────────────────────── */
 .item-detail .panel-head h2 { font-size: 1.75rem; }
 

@@ -1,6 +1,7 @@
-import { escapeHtml, on, typeLabel, fmtCents } from '../lib/dom'
+import { escapeHtml, fmtCents } from '../lib/dom'
 import { openDialog, confirmDialog } from '../lib/dialog'
 import { fieldHtml, readForm, SCALE_OPTIONS, TYPE_OPTIONS, CONDITION_OPTIONS } from '../lib/forms'
+import { wireRowTable, itemRowHtml, ITEM_TABLE_HEAD } from '../lib/rows'
 import type { Item, ItemInput, ItemType, Scale, ItemFilter, TrainSet } from '@shared/types'
 
 export async function renderItems(el: HTMLElement): Promise<void> {
@@ -28,15 +29,23 @@ export async function renderItems(el: HTMLElement): Promise<void> {
             ${SCALE_OPTIONS.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.value === '' ? 'All' : o.label)}</option>`).join('')}
           </select>
         </label>
+        <div class="filters-summary" id="summary"></div>
       </div>
-      <div class="list" id="list"></div>
+      <div class="table-wrap">
+        <table class="rh-table" id="rows">
+          ${ITEM_TABLE_HEAD}
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
   `
 
-  const list = el.querySelector<HTMLDivElement>('#list')!
+  const table = el.querySelector<HTMLTableElement>('#rows')!
+  const tbody = table.querySelector('tbody')!
   const fSearch = el.querySelector<HTMLInputElement>('#f-search')!
   const fType = el.querySelector<HTMLSelectElement>('#f-type')!
   const fScale = el.querySelector<HTMLSelectElement>('#f-scale')!
+  const summary = el.querySelector<HTMLDivElement>('#summary')!
 
   const refresh = async (): Promise<void> => {
     const filter: ItemFilter = {}
@@ -45,10 +54,13 @@ export async function renderItems(el: HTMLElement): Promise<void> {
     if (fScale.value) filter.scale = fScale.value as Scale
     const items = await window.roundhouse.items.list(filter)
     if (!items.length) {
-      list.innerHTML = `<p class="empty">No items match.</p>`
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No items match.</td></tr>`
+      summary.textContent = '0 items'
       return
     }
-    list.innerHTML = items.map(renderItemCard).join('')
+    tbody.innerHTML = items.map(itemRowHtml).join('')
+    const total = items.reduce((sum, i) => sum + (i.purchase_price_cents ?? 0), 0)
+    summary.textContent = `${items.length} item${items.length === 1 ? '' : 's'} · ${fmtCents(total)} purchased`
   }
 
   let searchTimer: number | undefined
@@ -63,48 +75,28 @@ export async function renderItems(el: HTMLElement): Promise<void> {
     if (await openItemDialog()) await refresh()
   })
 
-  on<HTMLButtonElement>(list, '[data-action="delete"]', 'click', async (_e, btn) => {
-    const id = Number(btn.dataset['id'])
-    const item = await window.roundhouse.items.get(id)
-    if (!item) return
-    const ok = await confirmDialog(
-      `Delete "${item.name}"? All photos for this item will also be deleted.`,
-      { title: 'Delete item?', destructive: true }
-    )
-    if (ok) {
-      await window.roundhouse.items.delete(id)
-      await refresh()
+  wireRowTable(table, {
+    'delete-item': async (id) => {
+      const item = await window.roundhouse.items.get(id)
+      if (!item) return
+      const ok = await confirmDialog(
+        `Delete "${item.name}"? All photos for this item will also be deleted.`,
+        { title: 'Delete item?', destructive: true }
+      )
+      if (ok) {
+        await window.roundhouse.items.delete(id)
+        await refresh()
+      }
     }
   })
 
   await refresh()
 }
 
-function renderItemCard(item: Item): string {
-  return `
-    <article class="card card-link">
-      <a class="card-body" href="#/items/${item.id}">
-        <h3>${escapeHtml(item.name)}</h3>
-        <p class="card-meta">
-          <span class="chip chip-type">${escapeHtml(typeLabel(item.type))}</span>
-          ${item.scale ? `<span class="chip">${escapeHtml(item.scale)}</span>` : ''}
-          ${item.manufacturer ? `<span>${escapeHtml(item.manufacturer)}</span>` : ''}
-          ${item.model_number ? `<span>#${escapeHtml(item.model_number)}</span>` : ''}
-        </p>
-        ${item.road_name ? `<p>${escapeHtml(item.road_name)}</p>` : ''}
-        ${item.current_value_cents != null ? `<p class="card-meta">Value: ${fmtCents(item.current_value_cents)}</p>` : ''}
-      </a>
-      <div class="card-actions">
-        <button class="icon-btn danger" data-action="delete" data-id="${item.id}" title="Delete">🗑</button>
-      </div>
-    </article>`
-}
-
 export async function openItemDialog(
   existing?: Item,
   defaults?: { setId?: number | null; scale?: Scale | null }
 ): Promise<boolean> {
-  // Build set options grouped by collection.
   const collections = await window.roundhouse.collections.list()
   const allSets = await window.roundhouse.sets.list()
   const setsByCollection = new Map<number, TrainSet[]>()
