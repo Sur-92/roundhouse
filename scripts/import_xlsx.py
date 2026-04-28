@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 """
-One-shot importer: 'Careys Train Inventory.xlsx' → Roundhouse SQLite DB.
+Bulk-import a model-train inventory spreadsheet into Roundhouse.
 
-Creates a single 'Carey's Trains' collection and inserts every item from
-the spreadsheet into it. Items are not assigned to a set; the user can
-group them in the UI later.
+Reads an .xlsx with the columns:
+    Scale | Mfg | Number | Item | Source | Purchased | Price | Color | Notes
+
+and inserts every row as an item under a single collection. Items are not
+assigned to a set; the user can group them in the UI later.
+
+The category prefix on the 'Item' column ("Locomotive - …", "RS - …",
+"Track - …", etc.) is mapped to the Roundhouse `type` enum.
 
 Idempotent guard: refuses to run if the target collection already exists.
 Pass --force to wipe-and-reimport that collection.
 
 Usage:
-    python3 scripts/import_careys.py [path/to/inventory.xlsx] [--force]
+    python3 scripts/import_xlsx.py path/to/inventory.xlsx \\
+        [--collection NAME] [--description TEXT] [--force]
 """
 
 from __future__ import annotations
 
 import argparse
-import os
-import re
 import sqlite3
 import sys
 from datetime import datetime, date
@@ -26,13 +30,10 @@ from typing import Optional
 
 from openpyxl import load_workbook
 
-DEFAULT_XLSX = Path.home() / "Downloads" / "Careys Train Inventory.xlsx"
-COLLECTION_NAME = "Carey's Trains"
-COLLECTION_DESC = "Imported from Careys Train Inventory.xlsx"
-
 # Mac dev path. On Windows this script wouldn't run anyway since Roundhouse
 # isn't packaged for Mac use long-term — this is dev-only seed data.
 DEFAULT_DB = Path.home() / "Library" / "Application Support" / "Roundhouse" / "roundhouse.db"
+DEFAULT_COLLECTION_NAME = "Imported Inventory"
 
 VALID_SCALES = {"Z", "N", "HO", "OO", "S", "O", "G"}
 
@@ -126,15 +127,22 @@ def clean(v: object) -> Optional[str]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("xlsx", nargs="?", default=str(DEFAULT_XLSX))
-    ap.add_argument("--db", default=str(DEFAULT_DB))
+    ap = argparse.ArgumentParser(description="Import a train-inventory .xlsx into Roundhouse")
+    ap.add_argument("xlsx", help="Path to the .xlsx inventory file")
+    ap.add_argument("--db", default=str(DEFAULT_DB),
+                    help="Target SQLite DB (default: Roundhouse user data dir)")
+    ap.add_argument("--collection", default=DEFAULT_COLLECTION_NAME,
+                    help=f"Collection name to import into (default: {DEFAULT_COLLECTION_NAME!r})")
+    ap.add_argument("--description", default=None,
+                    help="Collection description (default: 'Imported from <filename>')")
     ap.add_argument("--force", action="store_true",
-                    help="Delete existing 'Carey's Trains' collection before importing")
+                    help="Delete the target collection before importing if it exists")
     args = ap.parse_args()
 
     xlsx_path = Path(args.xlsx).expanduser()
     db_path = Path(args.db).expanduser()
+    collection_name: str = args.collection
+    collection_desc: str = args.description or f"Imported from {xlsx_path.name}"
 
     if not xlsx_path.exists():
         print(f"❌ Spreadsheet not found: {xlsx_path}", file=sys.stderr)
@@ -175,9 +183,9 @@ def main() -> int:
         return 3
 
     existing = db.execute("SELECT id FROM collections WHERE name = ?",
-                          (COLLECTION_NAME,)).fetchone()
+                          (collection_name,)).fetchone()
     if existing and not args.force:
-        print(f"⚠  Collection '{COLLECTION_NAME}' already exists. Use --force to wipe and reimport.",
+        print(f"⚠  Collection '{collection_name}' already exists. Use --force to wipe and reimport.",
               file=sys.stderr)
         return 4
     if existing and args.force:
@@ -186,10 +194,10 @@ def main() -> int:
 
     cur = db.execute(
         "INSERT INTO collections (name, description) VALUES (?, ?)",
-        (COLLECTION_NAME, COLLECTION_DESC),
+        (collection_name, collection_desc),
     )
     coll_id = cur.lastrowid
-    print(f"✓ Created collection '{COLLECTION_NAME}' (id={coll_id})")
+    print(f"✓ Created collection '{collection_name}' (id={coll_id})")
 
     # Counters for the report
     by_type: dict[str, int] = {}
