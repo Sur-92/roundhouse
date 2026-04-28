@@ -47,18 +47,24 @@ jobs:
         shell: bash
         run: npm run typecheck
 
-      - name: Build Windows installer
+      - name: Build Windows installer & publish draft release
         shell: bash
         env:
-          # Electron-builder will skip code signing if no cert is provided.
+          # Skip code signing — no cert wired up yet.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # electron-builder needs this to create the draft release and
+          # upload the installer + latest.yml + blockmap to it. The
+          # release is published as a draft (see electron-builder.yml
+          # publish.releaseType: draft); a human clicks Publish in the
+          # UI to roll the update out to existing v0.2.0+ installs.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:win
 
       - name: List release artifacts
         shell: bash
         run: ls -la release/
 
-      - name: Upload installer artifact
+      - name: Upload installer artifact (CI debug copy, 90-day)
         uses: actions/upload-artifact@v4
         with:
           name: roundhouse-windows-installer
@@ -67,14 +73,3 @@ jobs:
             release/*.exe.blockmap
             release/latest.yml
           retention-days: 90
-
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          draft: true
-          files: |
-            release/*.exe
-            release/*.exe.blockmap
-            release/latest.yml

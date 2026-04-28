@@ -33,4 +33,4 @@ publish:
   - provider: github
     owner: Sur-92
     repo: roundhouse
-    releaseType: release
+    releaseType: draft
