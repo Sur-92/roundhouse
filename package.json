@@ -4,7 +4,7 @@
   "description": "A desktop catalog for model train collections.",
   "main": "./out/main/index.js",
   "author": "Steve Beamesderfer",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "electron-vite dev",
