@@ -5,12 +5,15 @@ import { getDb, closeDb } from './db'
 import { registerIpc } from './ipc'
 import { photosRoot } from './photos'
 import { loadFeedbackConfig } from './feedback'
+import { setupAutoUpdater } from './updater'
 
 const isDev = !app.isPackaged
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }
 ])
+
+let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -31,6 +34,8 @@ function createWindow(): void {
     }
   })
 
+  mainWindow = win
+  win.on('closed', () => { mainWindow = null })
   win.once('ready-to-show', () => win.show())
 
   // Open external links in the default browser, never inside the app.
@@ -63,10 +68,11 @@ app.whenReady().then(() => {
     }
   })
 
-  getDb()                 // open DB and apply schema
-  loadFeedbackConfig()    // read feedback.json if present
-  registerIpc()           // wire handlers
+  getDb()                                         // open DB and apply schema
+  loadFeedbackConfig()                            // read feedback.json if present
+  registerIpc()                                   // wire handlers
   createWindow()
+  setupAutoUpdater(() => mainWindow)              // check GitHub Releases for updates
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
