@@ -4,7 +4,8 @@ import type {
   Collection, CollectionInput,
   TrainSet, TrainSetInput,
   Item, ItemInput, ItemFilter,
-  ItemPhoto
+  ItemPhoto,
+  FeedbackStatus, FeedbackIssue, FeedbackInput
 } from '@shared/types'
 
 const api: RoundhouseApi = {
@@ -34,6 +35,11 @@ const api: RoundhouseApi = {
     add: (itemId) => ipcRenderer.invoke('photos:add', itemId) as Promise<ItemPhoto[]>,
     delete: (id) => ipcRenderer.invoke('photos:delete', id) as Promise<void>,
     url: (filePath: string) => `app://photo/${filePath}`
+  },
+  feedback: {
+    status: () => ipcRenderer.invoke('feedback:status') as Promise<FeedbackStatus>,
+    list: () => ipcRenderer.invoke('feedback:list') as Promise<FeedbackIssue[]>,
+    create: (input: FeedbackInput) => ipcRenderer.invoke('feedback:create', input) as Promise<FeedbackIssue>
   }
 }
 

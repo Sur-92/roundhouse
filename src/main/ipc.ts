@@ -1,11 +1,13 @@
 import { ipcMain, dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import { getDb } from './db'
 import * as photos from './photos'
+import { getFeedbackStatus, listFeedbackIssues, createFeedbackIssue } from './feedback'
 import type {
   Collection, CollectionInput,
   TrainSet, TrainSetInput,
   Item, ItemInput, ItemFilter,
-  ItemPhoto
+  ItemPhoto,
+  FeedbackInput
 } from '@shared/types'
 
 const COLLECTION_FIELDS = ['name', 'description'] as const
@@ -177,4 +179,9 @@ export function registerIpc(): void {
     photos.deletePhoto(photo.file_path)
     db.prepare('DELETE FROM item_photos WHERE id = ?').run(photoId)
   })
+
+  // ─── Feedback (GitHub Issues) ────────────────────────
+  ipcMain.handle('feedback:status', () => getFeedbackStatus())
+  ipcMain.handle('feedback:list', async () => listFeedbackIssues())
+  ipcMain.handle('feedback:create', async (_e, input: FeedbackInput) => createFeedbackIssue(input))
 }

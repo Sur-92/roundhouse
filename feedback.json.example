@@ -1,0 +1,5 @@
+{
+  "repo": "OWNER/REPO",
+  "token": "github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "submitter": "Friendly identifier shown in issue bodies"
+}

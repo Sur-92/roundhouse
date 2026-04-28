@@ -5,6 +5,7 @@ import { renderSets } from './views/sets'
 import { renderSetDetail } from './views/set-detail'
 import { renderItems } from './views/items'
 import { renderItemDetail } from './views/item-detail'
+import { renderRequests } from './views/requests'
 
 type RouteHandler = (el: HTMLElement, params: Record<string, string>) => void | Promise<void>
 
@@ -32,7 +33,8 @@ const routes: CompiledRoute[] = [
   compile('/sets', renderSets, '/sets'),
   compile('/sets/:id', renderSetDetail, '/sets'),
   compile('/items', renderItems, '/items'),
-  compile('/items/:id', renderItemDetail, '/items')
+  compile('/items/:id', renderItemDetail, '/items'),
+  compile('/requests', renderRequests, '/requests')
 ]
 
 export function initRouter(): void {

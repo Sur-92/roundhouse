@@ -75,6 +75,33 @@ export interface ItemPhoto {
   created_at: string;
 }
 
+export type FeedbackCategory = 'bug' | 'feature' | 'question' | 'other';
+export type FeedbackState = 'open' | 'closed';
+
+export interface FeedbackStatus {
+  configured: boolean;
+  repo?: string;
+  submitter?: string;
+}
+
+export interface FeedbackIssue {
+  number: number;
+  title: string;
+  body: string;
+  state: FeedbackState;
+  category: FeedbackCategory;
+  created_at: string;
+  closed_at: string | null;
+  url: string;
+  comments: number;
+}
+
+export interface FeedbackInput {
+  category: FeedbackCategory;
+  title: string;
+  body: string | null;
+}
+
 export type CollectionInput = Omit<Collection, 'id' | 'created_at' | 'updated_at'>;
 export type TrainSetInput = Omit<TrainSet, 'id' | 'created_at' | 'updated_at'>;
 export type ItemInput = Omit<Item, 'id' | 'created_at' | 'updated_at'>;
@@ -114,5 +141,10 @@ export interface RoundhouseApi {
     add(itemId: number): Promise<ItemPhoto[]>;
     delete(id: number): Promise<void>;
     url(filePath: string): string;
+  };
+  feedback: {
+    status(): Promise<FeedbackStatus>;
+    list(): Promise<FeedbackIssue[]>;
+    create(input: FeedbackInput): Promise<FeedbackIssue>;
   };
 }
