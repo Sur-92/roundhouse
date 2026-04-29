@@ -41,7 +41,7 @@ export function itemRowHtml(item: Item): string {
       <td class="col-center">${item.scale ? `<span class="chip">${escapeHtml(item.scale)}</span>` : '<span class="muted">—</span>'}</td>
       <td>${item.manufacturer ? escapeHtml(item.manufacturer) : '<span class="muted">—</span>'}</td>
       <td class="col-mono">${item.model_number ? escapeHtml(item.model_number) : '<span class="muted">—</span>'}</td>
-      <td>${item.purchase_date ? fmtDate(item.purchase_date) : '<span class="muted">—</span>'}</td>
+      <td class="col-date">${item.purchase_date ? fmtDate(item.purchase_date) : '<span class="muted">—</span>'}</td>
       <td class="col-num">${item.purchase_price_cents != null ? fmtCents(item.purchase_price_cents) : '<span class="muted">—</span>'}</td>
       <td class="col-actions" data-no-nav>
         <button class="icon-btn danger" data-action="delete-item" data-id="${item.id}" title="Delete">🗑</button>
@@ -57,7 +57,7 @@ export const ITEM_TABLE_HEAD = `
       <th class="col-center">Scale</th>
       <th>Manufacturer</th>
       <th>Model #</th>
-      <th>Purchased</th>
+      <th class="col-date">Purchased</th>
       <th class="col-num">Price</th>
       <th class="col-actions"></th>
     </tr>

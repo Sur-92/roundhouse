@@ -590,6 +590,11 @@ main#view {
   white-space: nowrap;
 }
 
+.col-date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .col-center { text-align: center; }
 
 .col-actions {
