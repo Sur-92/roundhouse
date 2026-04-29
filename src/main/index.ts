@@ -1,4 +1,4 @@
-import { app, BrowserWindow, protocol, net, shell } from 'electron'
+import { app, BrowserWindow, Menu, protocol, net, shell } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { getDb, closeDb } from './db'
@@ -73,6 +73,26 @@ app.whenReady().then(() => {
   registerIpc()                                   // wire handlers
   createWindow()
   setupAutoUpdater(() => mainWindow)              // check GitHub Releases for updates
+
+  // Right-click context menu in editable fields (textareas, inputs).
+  // Without this, Windows users right-click expecting a Paste option,
+  // see nothing, and conclude paste is broken — even though Ctrl+V
+  // works fine. Fixes user-reported issue #3.
+  app.on('web-contents-created', (_e, contents) => {
+    contents.on('context-menu', (_event, params) => {
+      if (!params.isEditable) return
+      const items: Electron.MenuItemConstructorOptions[] = []
+      if (params.editFlags.canCut) items.push({ role: 'cut' })
+      if (params.editFlags.canCopy) items.push({ role: 'copy' })
+      if (params.editFlags.canPaste) {
+        items.push({ role: 'paste' })
+        items.push({ role: 'pasteAndMatchStyle', label: 'Paste as plain text' })
+      }
+      if (items.length) items.push({ type: 'separator' })
+      if (params.editFlags.canSelectAll) items.push({ role: 'selectAll' })
+      if (items.length) Menu.buildFromTemplate(items).popup({})
+    })
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
