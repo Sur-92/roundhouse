@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { ipcMain, dialog, BrowserWindow, app, type IpcMainInvokeEvent } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { getDb } from './db'
 import * as photos from './photos'
@@ -120,6 +120,11 @@ export function registerIpc(): void {
     }
     if (filter.type) { where.push('i.type = ?'); params.push(filter.type) }
     if (filter.scale) { where.push('i.scale = ?'); params.push(filter.scale) }
+    if (filter.hasPhotos === true) {
+      where.push('EXISTS (SELECT 1 FROM item_photos WHERE item_id = i.id)')
+    } else if (filter.hasPhotos === false) {
+      where.push('NOT EXISTS (SELECT 1 FROM item_photos WHERE item_id = i.id)')
+    }
     if (filter.search) {
       // Smart-search syntax: bare terms, field:value, field: (blank),
       // and -negation. Implementation in src/main/search.ts.
@@ -131,7 +136,14 @@ export function registerIpc(): void {
       }
     }
 
-    const sql = `SELECT i.* FROM items i${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY i.name`
+    const sql = `
+      SELECT i.*,
+        (SELECT file_path FROM item_photos
+          WHERE item_id = i.id
+          ORDER BY is_primary DESC, display_order ASC, id ASC
+          LIMIT 1) AS primary_photo_path
+      FROM items i${where.length ? ' WHERE ' + where.join(' AND ') : ''}
+      ORDER BY i.name`
     return db.prepare(sql).all(...params) as Item[]
   })
 
@@ -170,7 +182,9 @@ export function registerIpc(): void {
 
   // ─── Photos ──────────────────────────────────────────────────
   ipcMain.handle('photos:listForItem', (_e, itemId: number) =>
-    db.prepare('SELECT * FROM item_photos WHERE item_id = ? ORDER BY display_order, id').all(itemId) as ItemPhoto[]
+    db.prepare(
+      'SELECT * FROM item_photos WHERE item_id = ? ORDER BY is_primary DESC, display_order, id'
+    ).all(itemId) as ItemPhoto[]
   )
 
   ipcMain.handle('photos:add', async (e: IpcMainInvokeEvent, itemId: number) => {
@@ -206,7 +220,38 @@ export function registerIpc(): void {
     if (!photo) return
     photos.deletePhoto(photo.file_path)
     db.prepare('DELETE FROM item_photos WHERE id = ?').run(photoId)
+    // If we deleted the primary, promote the next earliest photo of that item.
+    if (photo.is_primary) {
+      const next = db.prepare(
+        'SELECT id FROM item_photos WHERE item_id = ? ORDER BY display_order, id LIMIT 1'
+      ).get(photo.item_id) as { id: number } | undefined
+      if (next) db.prepare('UPDATE item_photos SET is_primary = 1 WHERE id = ?').run(next.id)
+    }
   })
+
+  ipcMain.handle('photos:setCaption', (_e, photoId: number, caption: string | null) => {
+    const c = caption == null ? null : String(caption).trim() || null
+    db.prepare('UPDATE item_photos SET caption = ? WHERE id = ?').run(c, photoId)
+    return db.prepare('SELECT * FROM item_photos WHERE id = ?').get(photoId) as ItemPhoto
+  })
+
+  ipcMain.handle('photos:setPrimary', (_e, itemId: number, photoId: number) => {
+    const tx = db.transaction(() => {
+      db.prepare('UPDATE item_photos SET is_primary = 0 WHERE item_id = ? AND id <> ?').run(itemId, photoId)
+      db.prepare('UPDATE item_photos SET is_primary = 1 WHERE item_id = ? AND id = ?').run(itemId, photoId)
+    })
+    tx()
+  })
+
+  ipcMain.handle('photos:reorder', (_e, itemId: number, orderedIds: number[]) => {
+    if (!Array.isArray(orderedIds) || !orderedIds.length) return
+    const upd = db.prepare('UPDATE item_photos SET display_order = ? WHERE id = ? AND item_id = ?')
+    const tx = db.transaction(() => {
+      orderedIds.forEach((id, idx) => upd.run(idx, id, itemId))
+    })
+    tx()
+  })
+
 
   // ─── Feedback (GitHub Issues) ────────────────────────
   ipcMain.handle('feedback:status', () => getFeedbackStatus())
@@ -276,4 +321,7 @@ export function registerIpc(): void {
   ipcMain.handle('print:current', (e: IpcMainInvokeEvent) => {
     e.sender.print({ silent: false, printBackground: false })
   })
+
+  // ─── App ─────────────────────────────────────────────
+  ipcMain.handle('app:version', () => app.getVersion())
 }

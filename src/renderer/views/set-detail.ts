@@ -51,7 +51,7 @@ export async function renderSetDetail(el: HTMLElement, params: Record<string, st
   const refresh = async (): Promise<void> => {
     const items = await window.roundhouse.items.list({ setId: id })
     if (!items.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No items in this set yet.</td></tr>`
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-row">No items in this set yet.</td></tr>`
       return
     }
     tbody.innerHTML = items.map(itemRowHtml).join('')

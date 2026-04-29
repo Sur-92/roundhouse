@@ -69,6 +69,8 @@ export interface Item {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  /** Joined from item_photos: relative path of the primary photo, if any. */
+  primary_photo_path?: string | null;
 }
 
 export interface ItemPhoto {
@@ -77,8 +79,10 @@ export interface ItemPhoto {
   file_path: string;
   caption: string | null;
   display_order: number;
+  is_primary: 0 | 1;
   created_at: string;
 }
+
 
 export type FeedbackCategory = 'bug' | 'feature' | 'question' | 'other';
 export type FeedbackState = 'open' | 'closed';
@@ -107,6 +111,7 @@ export interface FeedbackInput {
   body: string | null;
 }
 
+
 export type CollectionInput = Omit<Collection, 'id' | 'created_at' | 'updated_at'>;
 export type TrainSetInput = Omit<TrainSet, 'id' | 'created_at' | 'updated_at'>;
 export type ItemInput = Omit<Item, 'id' | 'created_at' | 'updated_at'>;
@@ -117,6 +122,8 @@ export interface ItemFilter {
   type?: ItemType;
   scale?: Scale;
   search?: string;
+  /** When set, restricts to items with or without any photos. */
+  hasPhotos?: boolean;
 }
 
 export interface RoundhouseApi {
@@ -146,12 +153,18 @@ export interface RoundhouseApi {
     listForItem(itemId: number): Promise<ItemPhoto[]>;
     add(itemId: number): Promise<ItemPhoto[]>;
     delete(id: number): Promise<void>;
+    setCaption(id: number, caption: string | null): Promise<ItemPhoto>;
+    setPrimary(itemId: number, photoId: number): Promise<void>;
+    reorder(itemId: number, orderedIds: number[]): Promise<void>;
     url(filePath: string): string;
   };
   feedback: {
     status(): Promise<FeedbackStatus>;
     list(): Promise<FeedbackIssue[]>;
     create(input: FeedbackInput): Promise<FeedbackIssue>;
+  };
+  app: {
+    version(): Promise<string>;
   };
   lookups: {
     list(kind: LookupKind): Promise<LookupRow[]>;

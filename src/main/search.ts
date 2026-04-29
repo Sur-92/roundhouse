@@ -32,7 +32,9 @@ const FIELD_ALIAS: Record<string, string> = {
   source: 'source',
   era: 'era',
   year: 'year',
-  notes: 'notes'
+  notes: 'notes',
+  // Pseudo-fields handled specially (see buildSearchClauses).
+  photos: '__photos__'
 }
 
 // The fuzzy bare-search hits all of these. SQL injection is impossible
@@ -105,6 +107,19 @@ export function buildSearchClauses(query: string): SearchFragment[] {
   const tokens = tokenize(query).map(parseToken).filter((t): t is ParsedToken => !!t)
 
   for (const tok of tokens) {
+    // Pseudo-field 'photos' — exists check on item_photos table.
+    if (tok.field === '__photos__') {
+      const has = 'EXISTS (SELECT 1 FROM item_photos WHERE item_id = i.id)'
+      const lacks = 'NOT EXISTS (SELECT 1 FROM item_photos WHERE item_id = i.id)'
+      if (tok.value === undefined) {
+        out.push({ sql: tok.negate ? has : lacks, params: [] })
+      } else {
+        // photos:something is meaningless — fall back to "has photos".
+        out.push({ sql: tok.negate ? lacks : has, params: [] })
+      }
+      continue
+    }
+
     if (tok.field === undefined) {
       // Fuzzy across multiple columns. Each column gets its own LIKE.
       const likes = FUZZY_COLUMNS.map((c) => `${c} LIKE ?`).join(' OR ')

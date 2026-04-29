@@ -36,12 +36,18 @@ const api: RoundhouseApi = {
     listForItem: (itemId) => ipcRenderer.invoke('photos:listForItem', itemId) as Promise<ItemPhoto[]>,
     add: (itemId) => ipcRenderer.invoke('photos:add', itemId) as Promise<ItemPhoto[]>,
     delete: (id) => ipcRenderer.invoke('photos:delete', id) as Promise<void>,
+    setCaption: (id, caption) => ipcRenderer.invoke('photos:setCaption', id, caption) as Promise<ItemPhoto>,
+    setPrimary: (itemId, photoId) => ipcRenderer.invoke('photos:setPrimary', itemId, photoId) as Promise<void>,
+    reorder: (itemId, orderedIds) => ipcRenderer.invoke('photos:reorder', itemId, orderedIds) as Promise<void>,
     url: (filePath: string) => `app://photo/${filePath}`
   },
   feedback: {
     status: () => ipcRenderer.invoke('feedback:status') as Promise<FeedbackStatus>,
     list: () => ipcRenderer.invoke('feedback:list') as Promise<FeedbackIssue[]>,
     create: (input: FeedbackInput) => ipcRenderer.invoke('feedback:create', input) as Promise<FeedbackIssue>
+  },
+  app: {
+    version: () => ipcRenderer.invoke('app:version') as Promise<string>
   },
   lookups: {
     list: (kind: LookupKind) => ipcRenderer.invoke('lookups:list', kind) as Promise<LookupRow[]>,

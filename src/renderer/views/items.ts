@@ -2,6 +2,7 @@ import { escapeHtml, fmtCents, fmtDate, typeLabel, conditionLabel } from '../lib
 import { openDialog, confirmDialog } from '../lib/dialog'
 import { fieldHtml, readForm } from '../lib/forms'
 import { loadLookups, lookupOptions, lookupLabel } from '../lib/lookups'
+import { openConditionHelp } from '../lib/condition-help'
 import { wireRowTable, itemRowHtml, ITEM_TABLE_HEAD } from '../lib/rows'
 import { buildCsv } from '../lib/csv'
 import type { Item, ItemInput, ItemType, Scale, ItemFilter, TrainSet } from '@shared/types'
@@ -67,6 +68,8 @@ export async function renderItems(el: HTMLElement): Promise<void> {
           <li><code>mfg:</code><span class="help-desc">manufacturer is blank</span></li>
           <li><code>year:</code><span class="help-desc">no year recorded</span></li>
           <li><code>scale:</code><span class="help-desc">no scale assigned</span></li>
+          <li><code>photos:</code><span class="help-desc">no photos uploaded</span></li>
+          <li><code>-photos:</code><span class="help-desc">items that have at least one photo</span></li>
         </ul>
 
         <h4>Exclude with a minus</h4>
@@ -83,7 +86,7 @@ export async function renderItems(el: HTMLElement): Promise<void> {
         </ul>
 
         <h4>Available fields</h4>
-        <p class="help-desc">name, mfg, model, scale, type, condition, source, road, era, year, notes</p>
+        <p class="help-desc">name, mfg, model, scale, type, condition, source, road, era, year, notes, photos</p>
       </div>
 
       <div class="table-wrap">
@@ -102,6 +105,13 @@ export async function renderItems(el: HTMLElement): Promise<void> {
   const fScale = el.querySelector<HTMLSelectElement>('#f-scale')!
   const summary = el.querySelector<HTMLDivElement>('#summary')!
   const printHeader = el.querySelector<HTMLElement>('#print-header')!
+
+  // Pre-fill the search box if Home routed us here with a saved query.
+  const seeded = sessionStorage.getItem('items.search')
+  if (seeded) {
+    fSearch.value = seeded
+    sessionStorage.removeItem('items.search')
+  }
 
   // Cache the latest filter result so Print/Export operate on what's
   // currently displayed without a redundant DB round-trip.
@@ -143,7 +153,7 @@ export async function renderItems(el: HTMLElement): Promise<void> {
     `
 
     if (!items.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No items match.</td></tr>`
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-row">No items match.</td></tr>`
       return
     }
     tbody.innerHTML = items.map(itemRowHtml).join('')
@@ -268,7 +278,15 @@ export async function openItemDialog(
       ${fieldHtml({ label: 'Road name', name: 'road_name', value: existing?.road_name, placeholder: 'e.g. Union Pacific' })}
       ${fieldHtml({ label: 'Era', name: 'era', value: existing?.era, placeholder: 'e.g. III' })}
       ${fieldHtml({ label: 'Year', name: 'year', type: 'number', value: existing?.year })}
-      ${fieldHtml({ label: 'Condition', name: 'condition', type: 'select', value: existing?.condition, options: conditionOptions })}
+      <label class="field" for="f-condition">
+        <span class="field-label">
+          Condition
+          <button type="button" class="help-dot" data-action="condition-help" aria-label="Condition grading help">?</button>
+        </span>
+        <select id="f-condition" name="condition">
+          ${conditionOptions.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === (existing?.condition ?? '') ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+        </select>
+      </label>
       ${fieldHtml({ label: 'Original box', name: 'original_box', type: 'checkbox', value: existing?.original_box ? '1' : '' })}
       ${fieldHtml({ label: 'Purchase date', name: 'purchase_date', type: 'date', value: existing?.purchase_date })}
       ${fieldHtml({ label: 'Purchase price', name: 'purchase_price_cents', type: 'currency', value: existing?.purchase_price_cents != null ? (existing.purchase_price_cents / 100).toFixed(2) : '' })}
@@ -278,6 +296,16 @@ export async function openItemDialog(
       ${fieldHtml({ label: 'Notes', name: 'notes', type: 'textarea', value: existing?.notes, span: 2 })}
     </div>
   `
+
+  // Wire the Condition help-dot to the shared help dialog (replaces the
+  // earlier popover-based attempt — works even if popover API misbehaves).
+  body.addEventListener('click', (e) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action="condition-help"]')
+    if (target) {
+      e.preventDefault()
+      openConditionHelp()
+    }
+  })
 
   return openDialog({
     title: existing ? 'Edit item' : 'New item',

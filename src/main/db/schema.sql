@@ -58,9 +58,12 @@ CREATE TABLE IF NOT EXISTS item_photos (
   file_path     TEXT    NOT NULL,
   caption       TEXT,
   display_order INTEGER NOT NULL DEFAULT 0,
+  is_primary    INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_photos_item ON item_photos(item_id);
+-- idx_photos_item_primary is created by the migration runner so it
+-- can run safely on DBs that predate the is_primary column.
 
 -- Lookup tables that drive the dropdowns for item.type / item.scale /
 -- item.condition. Items.type/scale/condition are still stored as plain

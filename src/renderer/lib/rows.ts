@@ -34,8 +34,12 @@ export function wireRowTable(
 }
 
 export function itemRowHtml(item: Item): string {
+  const thumb = item.primary_photo_path
+    ? `<img class="row-thumb" src="${window.roundhouse.photos.url(item.primary_photo_path)}" alt="" loading="lazy" />`
+    : `<span class="row-thumb-empty" title="No photo">📷</span>`
   return `
     <tr data-href="/items/${item.id}">
+      <td class="col-thumb" data-no-nav>${thumb}</td>
       <td class="col-name">${escapeHtml(item.name)}</td>
       <td><span class="chip chip-type">${escapeHtml(typeLabel(item.type))}</span></td>
       <td class="col-center">${item.scale ? `<span class="chip">${escapeHtml(item.scale)}</span>` : '<span class="muted">—</span>'}</td>
@@ -52,6 +56,7 @@ export function itemRowHtml(item: Item): string {
 export const ITEM_TABLE_HEAD = `
   <thead>
     <tr>
+      <th class="col-thumb"></th>
       <th class="col-name">Name</th>
       <th>Type</th>
       <th class="col-center">Scale</th>

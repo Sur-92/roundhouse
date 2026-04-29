@@ -17,6 +17,44 @@ interface Migration {
 
 const MIGRATIONS: Migration[] = [
   {
+    id: '2026-04-29_add_is_primary_to_item_photos',
+    name: 'Add is_primary flag to item_photos and seed it from display_order',
+    up: (db) => {
+      // PRAGMA table_info returns empty for non-existent tables, so this
+      // is also a no-op if the schema hasn't created item_photos yet (which
+      // shouldn't happen — schema.sql runs before this — but defensive).
+      const cols = (db.prepare('PRAGMA table_info(item_photos)').all() as { name: string }[])
+        .map((c) => c.name)
+
+      if (!cols.length) return
+
+      if (!cols.includes('is_primary')) {
+        db.exec(`
+          ALTER TABLE item_photos ADD COLUMN is_primary INTEGER NOT NULL DEFAULT 0;
+          -- Seed: each item's earliest photo (by display_order, then id) becomes primary.
+          UPDATE item_photos
+             SET is_primary = 1
+           WHERE id IN (
+             SELECT id FROM (
+               SELECT id, ROW_NUMBER() OVER (
+                 PARTITION BY item_id ORDER BY display_order, id
+               ) AS rn
+               FROM item_photos
+             ) t
+             WHERE rn = 1
+           );
+        `)
+      }
+
+      // Always ensure the index exists — the migration is the canonical
+      // place that creates it, on both fresh installs and upgrades.
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_photos_item_primary
+          ON item_photos(item_id, is_primary);
+      `)
+    }
+  },
+  {
     id: '2026-04-29_drop_items_type_check',
     name: 'Drop CHECK constraint on items.type to allow user-defined types',
     up: (db) => {

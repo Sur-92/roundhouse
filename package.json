@@ -1,6 +1,6 @@
 {
   "name": "roundhouse",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "A desktop catalog for model train collections.",
   "main": "./out/main/index.js",
   "author": "Steve Beamesderfer",
@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "start": "electron-vite build && electron .",
     "build:win": "electron-vite build && electron-builder --win",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "rebuild": "electron-builder install-app-deps",
