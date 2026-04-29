@@ -159,4 +159,10 @@ export interface RoundhouseApi {
     update(kind: LookupKind, id: number, patch: Partial<LookupInput>): Promise<LookupRow>;
     delete(kind: LookupKind, id: number): Promise<void>;
   };
+  files: {
+    saveCsv(defaultName: string, content: string): Promise<string | null>;
+  };
+  print: {
+    current(): Promise<void>;
+  };
 }

@@ -1,7 +1,9 @@
 import { ipcMain, dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { writeFileSync } from 'node:fs'
 import { getDb } from './db'
 import * as photos from './photos'
 import { getFeedbackStatus, listFeedbackIssues, createFeedbackIssue } from './feedback'
+import { buildSearchClauses } from './search'
 import type {
   Collection, CollectionInput,
   TrainSet, TrainSetInput,
@@ -119,9 +121,14 @@ export function registerIpc(): void {
     if (filter.type) { where.push('i.type = ?'); params.push(filter.type) }
     if (filter.scale) { where.push('i.scale = ?'); params.push(filter.scale) }
     if (filter.search) {
-      where.push('(i.name LIKE ? OR i.manufacturer LIKE ? OR i.model_number LIKE ? OR i.notes LIKE ?)')
-      const q = `%${filter.search}%`
-      params.push(q, q, q, q)
+      // Smart-search syntax: bare terms, field:value, field: (blank),
+      // and -negation. Implementation in src/main/search.ts.
+      for (const frag of buildSearchClauses(filter.search)) {
+        // Re-prefix unqualified column names with the table alias 'i.'
+        // so the JOIN-style filters above don't clash with anything.
+        where.push(frag.sql.replace(/(^|\W)(name|manufacturer|model_number|notes|type|scale|condition|source|era|year|road_name)\b/g, '$1i.$2'))
+        params.push(...frag.params)
+      }
     }
 
     const sql = `SELECT i.* FROM items i${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY i.name`
@@ -246,5 +253,27 @@ export function registerIpc(): void {
     if (!row) return
     if (row.is_system) throw new Error(`Cannot delete the built-in "${row.label}" — only user-added rows can be removed.`)
     db.prepare(`DELETE FROM ${t} WHERE id = ?`).run(id)
+  })
+
+  // ─── Files (export) ──────────────────────────────────
+  ipcMain.handle('files:saveCsv', async (e: IpcMainInvokeEvent, defaultName: string, content: string) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (!win) return null
+    const result = await dialog.showSaveDialog(win, {
+      title: 'Export to CSV',
+      defaultPath: defaultName.endsWith('.csv') ? defaultName : `${defaultName}.csv`,
+      filters: [
+        { name: 'CSV', extensions: ['csv'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    if (result.canceled || !result.filePath) return null
+    // BOM lets Excel detect UTF-8 correctly when opening directly.
+    writeFileSync(result.filePath, '﻿' + content, 'utf8')
+    return result.filePath
+  })
+
+  ipcMain.handle('print:current', (e: IpcMainInvokeEvent) => {
+    e.sender.print({ silent: false, printBackground: false })
   })
 }

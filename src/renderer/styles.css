@@ -978,3 +978,243 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
 .small {
   font-size: 0.85rem;
 }
+
+/* ─── Search help popover ─────────────────────────────── */
+.filter-search { min-width: 240px; }
+
+.field-label .help-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 0.35rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: rgba(216, 160, 90, 0.12);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: 'Helvetica', Arial, sans-serif;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.field-label .help-dot:hover {
+  background: var(--accent);
+  color: #1a1410;
+  border-color: var(--accent);
+}
+
+.help-popover {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgba(35, 26, 20, 0.96);
+  color: var(--text);
+  padding: 1.1rem 1.3rem;
+  max-width: 480px;
+  width: calc(100vw - 4rem);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.help-popover::backdrop {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.help-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.help-popover-head h3 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 1.05rem;
+}
+
+.help-popover-lede {
+  margin: 0 0 0.85rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.help-popover h4 {
+  margin: 0.85rem 0 0.35rem;
+  font-size: 0.78rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.help-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.help-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.88rem;
+}
+
+.help-list code {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--accent);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.help-desc {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.help-desc em {
+  color: var(--text);
+  font-style: italic;
+}
+
+/* ─── Print stylesheet ────────────────────────────────── */
+.print-header { display: none; }
+
+@media print {
+  /* Reset to high-contrast paper-friendly defaults */
+  body {
+    background: white !important;
+    color: black !important;
+    font-family: 'Helvetica', Arial, sans-serif;
+    font-size: 9pt;
+  }
+  body::before { display: none; }
+  #app { min-height: 0; }
+
+  /* Hide all chrome */
+  .topbar,
+  .breadcrumb,
+  .panel-head,
+  .filters,
+  .filters-summary,
+  .head-actions,
+  .tabs,
+  .col-actions,
+  .card-actions,
+  .icon-btn,
+  .btn,
+  .photo-tile .photo-del,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Strip backdrop blur, glow, and the body background image */
+  main#view {
+    padding: 0;
+    max-width: none;
+  }
+  .panel {
+    background: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 !important;
+  }
+
+  /* Print header (only visible when printing) */
+  .print-header {
+    display: block;
+    margin: 0 0 12pt 0;
+    border-bottom: 1pt solid black;
+    padding-bottom: 6pt;
+  }
+  .print-header h2 {
+    margin: 0 0 4pt 0;
+    color: black;
+    font-size: 14pt;
+  }
+  .print-header .print-meta {
+    margin: 0;
+    font-size: 9pt;
+    color: #444;
+  }
+
+  /* Table cleanup for print */
+  .table-wrap {
+    background: white !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+  .rh-table {
+    width: 100%;
+    font-size: 8.5pt;
+  }
+  .rh-table thead th {
+    background: #eee !important;
+    color: black !important;
+    border-bottom: 1pt solid #333;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 8pt;
+    padding: 4pt 6pt;
+  }
+  .rh-table tbody td {
+    color: black !important;
+    border-bottom: 0.5pt solid #ccc;
+    padding: 3pt 6pt;
+  }
+  .rh-table tbody tr[data-href] { cursor: default; }
+  .rh-table tbody tr[data-href]:hover { background: white !important; }
+
+  /* Chips render as plain text bordered tokens on paper */
+  .chip {
+    background: white !important;
+    color: black !important;
+    border: 0.5pt solid #888 !important;
+    padding: 0 3pt;
+    font-size: 7.5pt;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  /* Avoid breaking a row across pages */
+  .rh-table tr { page-break-inside: avoid; }
+
+  /* Repeat headers on each printed page */
+  .rh-table thead { display: table-header-group; }
+  .rh-table tfoot { display: table-footer-group; }
+
+  /* Page setup with running header (left) and page x of y (right). */
+  @page {
+    size: letter portrait;
+    margin: 0.6in 0.5in 0.6in 0.5in;
+
+    @top-left {
+      content: "Roundhouse — Items";
+      font-family: 'Helvetica', Arial, sans-serif;
+      font-size: 8.5pt;
+      color: #555;
+    }
+    @top-right {
+      content: counter(page) " / " counter(pages);
+      font-family: 'Helvetica', Arial, sans-serif;
+      font-size: 8.5pt;
+      color: #555;
+    }
+  }
+}

@@ -48,6 +48,13 @@ const api: RoundhouseApi = {
     create: (kind: LookupKind, input: LookupInput) => ipcRenderer.invoke('lookups:create', kind, input) as Promise<LookupRow>,
     update: (kind: LookupKind, id: number, patch: Partial<LookupInput>) => ipcRenderer.invoke('lookups:update', kind, id, patch) as Promise<LookupRow>,
     delete: (kind: LookupKind, id: number) => ipcRenderer.invoke('lookups:delete', kind, id) as Promise<void>
+  },
+  files: {
+    saveCsv: (defaultName: string, content: string) =>
+      ipcRenderer.invoke('files:saveCsv', defaultName, content) as Promise<string | null>
+  },
+  print: {
+    current: () => ipcRenderer.invoke('print:current') as Promise<void>
   }
 }
 

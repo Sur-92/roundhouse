@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, protocol, net, shell } from 'electron'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { getDb, closeDb } from './db'
 import { registerIpc } from './ipc'
@@ -15,6 +16,18 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow: BrowserWindow | null = null
 
+function iconForBrowserWindow(): string | undefined {
+  // macOS uses the dock icon (set below) and the .icns embedded in the
+  // packaged .app — BrowserWindow.icon is ignored on macOS.
+  if (process.platform === 'darwin') return undefined
+  const filename = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
+  const dev = join(app.getAppPath(), 'resources', filename)
+  const prod = join(process.resourcesPath, filename)
+  if (existsSync(dev)) return dev
+  if (existsSync(prod)) return prod
+  return undefined
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1400,
@@ -23,6 +36,7 @@ function createWindow(): void {
     minHeight: 700,
     backgroundColor: '#1a1410',
     title: 'Roundhouse',
+    icon: iconForBrowserWindow(),
     autoHideMenuBar: true,
     show: false,
     webPreferences: {
@@ -52,6 +66,16 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // Dev-mode dock icon on macOS. The packaged .app uses the embedded
+  // .icns from electron-builder; `npm run dev` runs from the generic
+  // Electron.app bundle, so we override at runtime.
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    const devIcon = join(app.getAppPath(), 'resources', 'icon.png')
+    if (existsSync(devIcon)) {
+      try { app.dock?.setIcon(devIcon) } catch { /* ignore */ }
+    }
+  }
+
   // app://photo/<relPath> serves files from the user photos dir only.
   protocol.handle('app', (request) => {
     try {
