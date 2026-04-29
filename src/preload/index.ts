@@ -5,7 +5,8 @@ import type {
   TrainSet, TrainSetInput,
   Item, ItemInput, ItemFilter,
   ItemPhoto,
-  FeedbackStatus, FeedbackIssue, FeedbackInput
+  FeedbackStatus, FeedbackIssue, FeedbackInput,
+  LookupKind, LookupRow, LookupInput
 } from '@shared/types'
 
 const api: RoundhouseApi = {
@@ -28,7 +29,8 @@ const api: RoundhouseApi = {
     get: (id) => ipcRenderer.invoke('items:get', id) as Promise<Item | null>,
     create: (input: ItemInput) => ipcRenderer.invoke('items:create', input) as Promise<Item>,
     update: (id, patch) => ipcRenderer.invoke('items:update', id, patch) as Promise<Item>,
-    delete: (id) => ipcRenderer.invoke('items:delete', id) as Promise<void>
+    delete: (id) => ipcRenderer.invoke('items:delete', id) as Promise<void>,
+    distinctValues: (field) => ipcRenderer.invoke('items:distinctValues', field) as Promise<string[]>
   },
   photos: {
     listForItem: (itemId) => ipcRenderer.invoke('photos:listForItem', itemId) as Promise<ItemPhoto[]>,
@@ -40,6 +42,12 @@ const api: RoundhouseApi = {
     status: () => ipcRenderer.invoke('feedback:status') as Promise<FeedbackStatus>,
     list: () => ipcRenderer.invoke('feedback:list') as Promise<FeedbackIssue[]>,
     create: (input: FeedbackInput) => ipcRenderer.invoke('feedback:create', input) as Promise<FeedbackIssue>
+  },
+  lookups: {
+    list: (kind: LookupKind) => ipcRenderer.invoke('lookups:list', kind) as Promise<LookupRow[]>,
+    create: (kind: LookupKind, input: LookupInput) => ipcRenderer.invoke('lookups:create', kind, input) as Promise<LookupRow>,
+    update: (kind: LookupKind, id: number, patch: Partial<LookupInput>) => ipcRenderer.invoke('lookups:update', kind, id, patch) as Promise<LookupRow>,
+    delete: (kind: LookupKind, id: number) => ipcRenderer.invoke('lookups:delete', kind, id) as Promise<void>
   }
 }
 

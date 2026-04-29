@@ -1,26 +1,31 @@
 // Domain types and the IPC API surface.
 // Imported by main, preload, and renderer — keep zero runtime side effects.
 
-export type ItemType =
-  | 'locomotive'
-  | 'rolling_stock'
-  | 'building'
-  | 'figurine'
-  | 'track'
-  | 'scenery'
-  | 'accessory'
-  | 'other';
+// As of v0.3.0 these are free-form strings. The dropdown options come
+// from the item_types / item_scales / item_conditions lookup tables,
+// which the user manages from the Settings page. Items still store
+// raw string values; deleting a lookup row doesn't break existing
+// items.
+export type ItemType = string;
+export type Scale = string;
+export type Condition = string;
 
-export type Scale = 'Z' | 'N' | 'HO' | 'OO' | 'S' | 'O' | 'G' | 'other';
+export type LookupKind = 'type' | 'scale' | 'condition';
 
-export type Condition =
-  | 'new'
-  | 'like_new'
-  | 'excellent'
-  | 'good'
-  | 'fair'
-  | 'poor'
-  | 'parts';
+export interface LookupRow {
+  id: number;
+  value: string;
+  label: string;
+  sort_order: number;
+  is_system: 0 | 1;
+  created_at: string;
+}
+
+export interface LookupInput {
+  value: string;
+  label: string;
+  sort_order?: number;
+}
 
 export interface Collection {
   id: number;
@@ -135,6 +140,7 @@ export interface RoundhouseApi {
     create(input: ItemInput): Promise<Item>;
     update(id: number, input: Partial<ItemInput>): Promise<Item>;
     delete(id: number): Promise<void>;
+    distinctValues(field: 'type' | 'scale' | 'condition'): Promise<string[]>;
   };
   photos: {
     listForItem(itemId: number): Promise<ItemPhoto[]>;
@@ -146,5 +152,11 @@ export interface RoundhouseApi {
     status(): Promise<FeedbackStatus>;
     list(): Promise<FeedbackIssue[]>;
     create(input: FeedbackInput): Promise<FeedbackIssue>;
+  };
+  lookups: {
+    list(kind: LookupKind): Promise<LookupRow[]>;
+    create(kind: LookupKind, input: LookupInput): Promise<LookupRow>;
+    update(kind: LookupKind, id: number, patch: Partial<LookupInput>): Promise<LookupRow>;
+    delete(kind: LookupKind, id: number): Promise<void>;
   };
 }

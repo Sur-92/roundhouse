@@ -28,8 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_sets_collection ON sets(collection_id);
 CREATE TABLE IF NOT EXISTS items (
   id                   INTEGER PRIMARY KEY AUTOINCREMENT,
   set_id               INTEGER REFERENCES sets(id) ON DELETE SET NULL,
-  type                 TEXT    NOT NULL CHECK (type IN
-    ('locomotive','rolling_stock','building','figurine','track','scenery','accessory','other')),
+  type                 TEXT    NOT NULL,
   name                 TEXT    NOT NULL,
   manufacturer         TEXT,
   model_number         TEXT,
@@ -62,6 +61,66 @@ CREATE TABLE IF NOT EXISTS item_photos (
   created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_photos_item ON item_photos(item_id);
+
+-- Lookup tables that drive the dropdowns for item.type / item.scale /
+-- item.condition. Items.type/scale/condition are still stored as plain
+-- TEXT (no FK) — the user can rename or delete a lookup row without
+-- breaking historical items. The Settings page CRUDs these.
+CREATE TABLE IF NOT EXISTS item_types (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  value      TEXT    NOT NULL UNIQUE,
+  label      TEXT    NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_system  INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS item_scales (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  value      TEXT    NOT NULL UNIQUE,
+  label      TEXT    NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_system  INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS item_conditions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  value      TEXT    NOT NULL UNIQUE,
+  label      TEXT    NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_system  INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- Seed system rows (idempotent: INSERT OR IGNORE on the unique value).
+INSERT OR IGNORE INTO item_types (value, label, sort_order, is_system) VALUES
+  ('locomotive',    'Locomotive',     10, 1),
+  ('rolling_stock', 'Rolling stock',  20, 1),
+  ('building',      'Building',       30, 1),
+  ('figurine',      'Figurine',       40, 1),
+  ('track',         'Track',          50, 1),
+  ('scenery',       'Scenery',        60, 1),
+  ('accessory',     'Accessory',      70, 1),
+  ('other',         'Other',          80, 1);
+
+INSERT OR IGNORE INTO item_scales (value, label, sort_order, is_system) VALUES
+  ('Z',  'Z',  10, 1),
+  ('N',  'N',  20, 1),
+  ('HO', 'HO', 30, 1),
+  ('OO', 'OO', 40, 1),
+  ('S',  'S',  50, 1),
+  ('O',  'O',  60, 1),
+  ('G',  'G',  70, 1);
+
+INSERT OR IGNORE INTO item_conditions (value, label, sort_order, is_system) VALUES
+  ('new',       'New',        10, 1),
+  ('like_new',  'Like new',   20, 1),
+  ('excellent', 'Excellent',  30, 1),
+  ('good',      'Good',       40, 1),
+  ('fair',      'Fair',       50, 1),
+  ('poor',      'Poor',       60, 1),
+  ('parts',     'For parts',  70, 1);
 
 -- updated_at maintenance (recursive_triggers is OFF by default, so these don't loop).
 CREATE TRIGGER IF NOT EXISTS trg_collections_updated

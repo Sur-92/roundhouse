@@ -1,10 +1,15 @@
 import { escapeHtml, fmtCents } from '../lib/dom'
 import { openDialog, confirmDialog } from '../lib/dialog'
-import { fieldHtml, readForm, SCALE_OPTIONS, TYPE_OPTIONS, CONDITION_OPTIONS } from '../lib/forms'
+import { fieldHtml, readForm } from '../lib/forms'
+import { loadLookups, lookupOptions } from '../lib/lookups'
 import { wireRowTable, itemRowHtml, ITEM_TABLE_HEAD } from '../lib/rows'
 import type { Item, ItemInput, ItemType, Scale, ItemFilter, TrainSet } from '@shared/types'
 
 export async function renderItems(el: HTMLElement): Promise<void> {
+  await loadLookups()
+  const typeOptions = lookupOptions('type')
+  const scaleOptions = lookupOptions('scale', { includeBlank: false })
+
   el.innerHTML = `
     <section class="panel">
       <header class="panel-head">
@@ -20,13 +25,14 @@ export async function renderItems(el: HTMLElement): Promise<void> {
           <span class="field-label">Type</span>
           <select id="f-type">
             <option value="">All</option>
-            ${TYPE_OPTIONS.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('')}
+            ${typeOptions.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('')}
           </select>
         </label>
         <label class="field-inline">
           <span class="field-label">Scale</span>
           <select id="f-scale">
-            ${SCALE_OPTIONS.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.value === '' ? 'All' : o.label)}</option>`).join('')}
+            <option value="">All</option>
+            ${scaleOptions.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('')}
           </select>
         </label>
         <div class="filters-summary" id="summary"></div>
@@ -97,6 +103,11 @@ export async function openItemDialog(
   existing?: Item,
   defaults?: { setId?: number | null; scale?: Scale | null }
 ): Promise<boolean> {
+  await loadLookups()
+  const typeOptions = lookupOptions('type')
+  const scaleOptions = lookupOptions('scale', { includeBlank: true })
+  const conditionOptions = lookupOptions('condition', { includeBlank: true })
+
   const collections = await window.roundhouse.collections.list()
   const allSets = await window.roundhouse.sets.list()
   const setsByCollection = new Map<number, TrainSet[]>()
@@ -128,18 +139,18 @@ export async function openItemDialog(
   body.innerHTML = `
     <div class="rh-form-grid">
       ${fieldHtml({ label: 'Name', name: 'name', value: existing?.name, required: true, span: 2 })}
-      ${fieldHtml({ label: 'Type', name: 'type', type: 'select', value: existing?.type ?? 'locomotive', options: TYPE_OPTIONS, required: true })}
+      ${fieldHtml({ label: 'Type', name: 'type', type: 'select', value: existing?.type ?? typeOptions[0]?.value ?? '', options: typeOptions, required: true })}
       <label class="field" for="f-set_id">
         <span class="field-label">Set</span>
         <select id="f-set_id" name="set_id">${setOptionsHtml}</select>
       </label>
       ${fieldHtml({ label: 'Manufacturer', name: 'manufacturer', value: existing?.manufacturer })}
       ${fieldHtml({ label: 'Model number', name: 'model_number', value: existing?.model_number })}
-      ${fieldHtml({ label: 'Scale', name: 'scale', type: 'select', value: existing?.scale ?? defaults?.scale ?? '', options: SCALE_OPTIONS })}
+      ${fieldHtml({ label: 'Scale', name: 'scale', type: 'select', value: existing?.scale ?? defaults?.scale ?? '', options: scaleOptions })}
       ${fieldHtml({ label: 'Road name', name: 'road_name', value: existing?.road_name, placeholder: 'e.g. Union Pacific' })}
       ${fieldHtml({ label: 'Era', name: 'era', value: existing?.era, placeholder: 'e.g. III' })}
       ${fieldHtml({ label: 'Year', name: 'year', type: 'number', value: existing?.year })}
-      ${fieldHtml({ label: 'Condition', name: 'condition', type: 'select', value: existing?.condition, options: CONDITION_OPTIONS })}
+      ${fieldHtml({ label: 'Condition', name: 'condition', type: 'select', value: existing?.condition, options: conditionOptions })}
       ${fieldHtml({ label: 'Original box', name: 'original_box', type: 'checkbox', value: existing?.original_box ? '1' : '' })}
       ${fieldHtml({ label: 'Purchase date', name: 'purchase_date', type: 'date', value: existing?.purchase_date })}
       ${fieldHtml({ label: 'Purchase price', name: 'purchase_price_cents', type: 'currency', value: existing?.purchase_price_cents != null ? (existing.purchase_price_cents / 100).toFixed(2) : '' })}

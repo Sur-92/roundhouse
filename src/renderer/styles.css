@@ -886,3 +886,95 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
   font-size: 0.78rem;
   opacity: 0.75;
 }
+
+/* ─── Settings page ───────────────────────────────────── */
+.settings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.settings-section {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1.1rem 1.25rem 1.25rem;
+}
+
+.settings-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.settings-section-head h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+  color: var(--accent);
+}
+
+.settings-section-head p {
+  margin: 0;
+  max-width: 60ch;
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition: border-color 0.15s ease;
+}
+
+.settings-row:hover { border-color: var(--border); }
+
+.settings-row-label {
+  font-weight: 500;
+  color: var(--text);
+  min-width: 8rem;
+}
+
+.settings-row-value {
+  flex: 1;
+}
+
+.settings-row-actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.system-chip {
+  background: rgba(155, 200, 220, 0.18);
+  border-color: rgba(155, 200, 220, 0.35);
+  color: #b9d8e6;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.5rem;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.mono {
+  font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+
+.small {
+  font-size: 0.85rem;
+}

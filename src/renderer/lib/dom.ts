@@ -48,32 +48,16 @@ export function fmtDate(s: string | null | undefined): string {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  locomotive: 'Locomotive',
-  rolling_stock: 'Rolling stock',
-  building: 'Building',
-  figurine: 'Figurine',
-  track: 'Track',
-  scenery: 'Scenery',
-  accessory: 'Accessory',
-  other: 'Other'
-}
+// As of v0.3.0 these labels come from the user-managed lookup tables
+// instead of a hardcoded map. The cache must be primed (loadLookups)
+// before these are called — main.ts does that during boot.
+import { lookupLabel } from './lookups'
 
 export function typeLabel(t: string): string {
-  return TYPE_LABELS[t] ?? t
-}
-
-const CONDITION_LABELS: Record<string, string> = {
-  new: 'New',
-  like_new: 'Like new',
-  excellent: 'Excellent',
-  good: 'Good',
-  fair: 'Fair',
-  poor: 'Poor',
-  parts: 'For parts'
+  return lookupLabel('type', t)
 }
 
 export function conditionLabel(c: string | null | undefined): string {
   if (!c) return '—'
-  return CONDITION_LABELS[c] ?? c
+  return lookupLabel('condition', c)
 }

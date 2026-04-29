@@ -3,6 +3,7 @@ import Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import schemaSql from './schema.sql?raw'
+import { runMigrations } from './migrations'
 
 let db: Database.Database | null = null
 
@@ -15,6 +16,7 @@ export function getDb(): Database.Database {
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   db.exec(schemaSql)
+  runMigrations(db)
   return db
 }
 

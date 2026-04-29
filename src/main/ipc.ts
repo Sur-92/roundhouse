@@ -7,8 +7,21 @@ import type {
   TrainSet, TrainSetInput,
   Item, ItemInput, ItemFilter,
   ItemPhoto,
-  FeedbackInput
+  FeedbackInput,
+  LookupKind, LookupInput, LookupRow
 } from '@shared/types'
+
+const LOOKUP_TABLE: Record<LookupKind, string> = {
+  type: 'item_types',
+  scale: 'item_scales',
+  condition: 'item_conditions'
+}
+
+function lookupTable(kind: LookupKind): string {
+  const t = LOOKUP_TABLE[kind]
+  if (!t) throw new Error(`Unknown lookup kind: ${kind}`)
+  return t
+}
 
 const COLLECTION_FIELDS = ['name', 'description'] as const
 const SET_FIELDS = ['collection_id', 'name', 'description', 'scale', 'manufacturer', 'era', 'notes'] as const
@@ -119,6 +132,14 @@ export function registerIpc(): void {
     (db.prepare('SELECT * FROM items WHERE id = ?').get(id) as Item | undefined) ?? null
   )
 
+  ipcMain.handle('items:distinctValues', (_e, field: 'type' | 'scale' | 'condition') => {
+    if (!['type', 'scale', 'condition'].includes(field)) return [] as string[]
+    const rows = db.prepare(
+      `SELECT DISTINCT ${field} AS v FROM items WHERE ${field} IS NOT NULL AND ${field} <> '' ORDER BY ${field}`
+    ).all() as { v: string }[]
+    return rows.map((r) => r.v)
+  })
+
   ipcMain.handle('items:create', (_e, input: ItemInput) => {
     const cols = ITEM_FIELDS.join(', ')
     const placeholders = ITEM_FIELDS.map(() => '?').join(', ')
@@ -184,4 +205,46 @@ export function registerIpc(): void {
   ipcMain.handle('feedback:status', () => getFeedbackStatus())
   ipcMain.handle('feedback:list', async () => listFeedbackIssues())
   ipcMain.handle('feedback:create', async (_e, input: FeedbackInput) => createFeedbackIssue(input))
+
+  // ─── Lookups (Type / Scale / Condition) ──────────────
+  ipcMain.handle('lookups:list', (_e, kind: LookupKind) => {
+    const t = lookupTable(kind)
+    return db.prepare(`SELECT * FROM ${t} ORDER BY sort_order, label`).all() as LookupRow[]
+  })
+
+  ipcMain.handle('lookups:create', (_e, kind: LookupKind, input: LookupInput) => {
+    const t = lookupTable(kind)
+    const value = String(input.value ?? '').trim()
+    const label = String(input.label ?? value).trim() || value
+    if (!value) throw new Error('Value is required')
+    // Default sort_order: max + 10 so user-added rows append after system rows.
+    const next = (db.prepare(`SELECT COALESCE(MAX(sort_order), 0) + 10 AS n FROM ${t}`).get() as { n: number }).n
+    const sort = input.sort_order != null ? Number(input.sort_order) : next
+    const r = db.prepare(`INSERT INTO ${t} (value, label, sort_order, is_system) VALUES (?, ?, ?, 0)`)
+      .run(value, label, sort)
+    return db.prepare(`SELECT * FROM ${t} WHERE id = ?`).get(r.lastInsertRowid) as LookupRow
+  })
+
+  ipcMain.handle('lookups:update', (_e, kind: LookupKind, id: number, patch: Partial<LookupInput>) => {
+    const t = lookupTable(kind)
+    const existing = db.prepare(`SELECT * FROM ${t} WHERE id = ?`).get(id) as LookupRow | undefined
+    if (!existing) throw new Error(`No ${kind} with id ${id}`)
+    // System rows: only label/sort_order may change. value is locked so existing items don't drift.
+    const label = patch.label != null ? String(patch.label).trim() : existing.label
+    const sort = patch.sort_order != null ? Number(patch.sort_order) : existing.sort_order
+    const value = existing.is_system ? existing.value
+      : (patch.value != null ? String(patch.value).trim() : existing.value)
+    if (!value || !label) throw new Error('Value and label are required')
+    db.prepare(`UPDATE ${t} SET value = ?, label = ?, sort_order = ? WHERE id = ?`)
+      .run(value, label, sort, id)
+    return db.prepare(`SELECT * FROM ${t} WHERE id = ?`).get(id) as LookupRow
+  })
+
+  ipcMain.handle('lookups:delete', (_e, kind: LookupKind, id: number) => {
+    const t = lookupTable(kind)
+    const row = db.prepare(`SELECT * FROM ${t} WHERE id = ?`).get(id) as LookupRow | undefined
+    if (!row) return
+    if (row.is_system) throw new Error(`Cannot delete the built-in "${row.label}" — only user-added rows can be removed.`)
+    db.prepare(`DELETE FROM ${t} WHERE id = ?`).run(id)
+  })
 }
