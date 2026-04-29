@@ -165,6 +165,7 @@ export interface RoundhouseApi {
   };
   app: {
     version(): Promise<string>;
+    onReleaseNotesRequested(cb: () => void): void;
   };
   lookups: {
     list(kind: LookupKind): Promise<LookupRow[]>;

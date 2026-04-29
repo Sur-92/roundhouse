@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, protocol, net, shell } from 'electron'
+import { app, BrowserWindow, Menu, dialog, protocol, net, shell } from 'electron'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -15,6 +15,113 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let mainWindow: BrowserWindow | null = null
+
+/**
+ * Native About dialog — modeled after the Manifest app's pattern.
+ * Shows version + tagline + a "Release Notes…" button that hands off
+ * to the renderer to open the changelog modal.
+ */
+async function showAboutDialog(win: BrowserWindow): Promise<void> {
+  const result = await dialog.showMessageBox(win, {
+    type: 'info',
+    title: 'About Roundhouse',
+    message: `Roundhouse v${app.getVersion()}`,
+    detail:
+      'A desktop catalog for model train collections.\n\n' +
+      '© 2026 Steve Beamesderfer · MIT License\n' +
+      'github.com/Sur-92/roundhouse',
+    buttons: ['Release Notes…', 'OK'],
+    defaultId: 1,
+    cancelId: 1,
+    icon: iconForBrowserWindow()
+  })
+  if (result.response === 0) {
+    win.webContents.send('roundhouse:show-release-notes')
+  }
+}
+
+function buildApplicationMenu(): Menu {
+  const isMac = process.platform === 'darwin'
+
+  const aboutItem: Electron.MenuItemConstructorOptions = {
+    label: 'About Roundhouse',
+    click: (_, win) => {
+      const target = (win as BrowserWindow) || mainWindow
+      if (target) void showAboutDialog(target)
+    }
+  }
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? ([{
+          label: app.name,
+          submenu: [
+            aboutItem,
+            { type: 'separator' },
+            { role: 'services' },
+            { type: 'separator' },
+            { role: 'hide' },
+            { role: 'hideOthers' },
+            { role: 'unhide' },
+            { type: 'separator' },
+            { role: 'quit' }
+          ]
+        }] as Electron.MenuItemConstructorOptions[])
+      : []),
+    {
+      label: 'File',
+      submenu: [isMac ? { role: 'close' } : { role: 'quit' }]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'pasteAndMatchStyle', label: 'Paste as plain text' },
+        { type: 'separator' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [{ role: 'minimize' }, { role: 'close' }]
+    },
+    {
+      label: 'Help',
+      submenu: [
+        // On macOS the standard "About" lives in the app menu (above);
+        // on Windows / Linux the Help menu is the conventional spot.
+        ...(isMac ? [] : [aboutItem]),
+        {
+          label: 'Roundhouse on GitHub',
+          click: () => {
+            shell.openExternal('https://github.com/Sur-92/roundhouse').catch(() => {})
+          }
+        }
+      ]
+    }
+  ]
+
+  return Menu.buildFromTemplate(template)
+}
 
 function iconForBrowserWindow(): string | undefined {
   // macOS uses the dock icon (set below) and the .icns embedded in the
@@ -37,7 +144,6 @@ function createWindow(): void {
     backgroundColor: '#1a1410',
     title: 'Roundhouse',
     icon: iconForBrowserWindow(),
-    autoHideMenuBar: true,
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -95,6 +201,7 @@ app.whenReady().then(() => {
   getDb()                                         // open DB and apply schema
   loadFeedbackConfig()                            // read feedback.json if present
   registerIpc()                                   // wire handlers
+  Menu.setApplicationMenu(buildApplicationMenu()) // app menu with About item
   createWindow()
   setupAutoUpdater(() => mainWindow)              // check GitHub Releases for updates
 

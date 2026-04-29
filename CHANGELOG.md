@@ -1,5 +1,12 @@
 # Roundhouse Release Notes
 
+## v0.4.1 — 2026-04-29
+
+### UX corrections
+- **Logo click goes Home.** Clicking the Roundhouse logo in the top-left now navigates back to the Home view, the standard convention every app on the planet has used for decades. No more opening About by accident.
+- **Removed the redundant Home tab** from the menu bar. The logo is the Home button.
+- **About Roundhouse moved to the menu bar** (where it belongs). On macOS it's under the **Roundhouse** app menu; on Windows/Linux it's under **Help → About Roundhouse**. It's a native OS About dialog showing the version and a **Release Notes…** button. Clicking that opens an in-app modal with the full release history (previously the modal was awkwardly bolted onto the logo click).
+
 ## v0.4.0 — 2026-04-29
 
 ### Photo gallery, big upgrade

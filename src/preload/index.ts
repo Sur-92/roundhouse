@@ -47,7 +47,10 @@ const api: RoundhouseApi = {
     create: (input: FeedbackInput) => ipcRenderer.invoke('feedback:create', input) as Promise<FeedbackIssue>
   },
   app: {
-    version: () => ipcRenderer.invoke('app:version') as Promise<string>
+    version: () => ipcRenderer.invoke('app:version') as Promise<string>,
+    onReleaseNotesRequested: (cb: () => void) => {
+      ipcRenderer.on('roundhouse:show-release-notes', () => cb())
+    }
   },
   lookups: {
     list: (kind: LookupKind) => ipcRenderer.invoke('lookups:list', kind) as Promise<LookupRow[]>,

@@ -1,15 +1,19 @@
 import { escapeHtml } from './dom'
-// Manifest's pattern: bundle the changelog at build time via Vite's ?raw
-// import. The markdown text is baked into the renderer; no network call,
-// no rate limits, works offline, and the notes are guaranteed to match
-// the version actually installed.
+// CHANGELOG.md is bundled at build time via Vite's ?raw import. No
+// network call, works offline, the notes always match the version
+// installed.
 import changelogText from '../../../CHANGELOG.md?raw'
 
 /**
- * "About Roundhouse" modal — combines app version + copyright with the
- * inline release-history changelog (rendered from bundled CHANGELOG.md).
+ * Release Notes modal — content-only popup that renders the bundled
+ * CHANGELOG.md as HTML.
+ *
+ * Triggered by main when the user clicks "Release Notes…" in the native
+ * About dialog (App menu → About Roundhouse → Release Notes…). This
+ * matches the Manifest app's pattern: app metadata in the OS-native
+ * About panel, release history in a dedicated in-app modal.
  */
-export async function openAboutDialog(): Promise<void> {
+export async function openReleaseNotesModal(): Promise<void> {
   const installedVersion = await window.roundhouse.app.version()
 
   const dlg = document.createElement('dialog')
@@ -17,23 +21,10 @@ export async function openAboutDialog(): Promise<void> {
   dlg.innerHTML = `
     <form method="dialog" class="rh-dialog-form">
       <header class="rh-dialog-head">
-        <div class="about-head-content">
-          <img class="about-logo" src="/logo.png" alt="" aria-hidden="true" />
-          <div>
-            <h3>Roundhouse</h3>
-            <p class="about-version">v${escapeHtml(installedVersion)}</p>
-          </div>
-        </div>
+        <h3>Release Notes</h3>
         <button type="button" class="rh-dialog-x" aria-label="Close" data-action="cancel">×</button>
       </header>
       <div class="rh-dialog-body about-body">
-        <p class="about-tag">A desktop catalog for model train collections.</p>
-        <p class="about-meta">
-          © 2026 Steve Beamesderfer · MIT License<br />
-          <a href="https://github.com/Sur-92/roundhouse" target="_blank" rel="noopener">github.com/Sur-92/roundhouse</a>
-        </p>
-
-        <h4 class="about-section-head">Release notes</h4>
         <div class="changelog-body">${renderChangelog(changelogText, installedVersion)}</div>
       </div>
       <footer class="rh-dialog-foot">
@@ -53,7 +44,7 @@ export async function openAboutDialog(): Promise<void> {
 
 /**
  * Tiny markdown→HTML for the limited subset used in CHANGELOG.md:
- *   # / ## / ### headings, bullet lists, **bold**, `code`, and bare URLs.
+ *   # / ## / ### headings, bullet lists, **bold**, `code`, links, URLs.
  * Highlights the entry whose tag matches the installed version.
  */
 function renderChangelog(md: string, installed: string): string {

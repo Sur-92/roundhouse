@@ -73,19 +73,18 @@ a:hover { color: var(--text); }
   font-size: 0.95rem;
 }
 
-.brand-button {
-  background: transparent;
-  border: 1px solid transparent;
+.brand-link {
+  text-decoration: none;
   padding: 0.25rem 0.5rem;
   border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-family: inherit;
+  border: 1px solid transparent;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.brand-button:hover {
+.brand-link:hover {
   background: rgba(216, 160, 90, 0.1);
   border-color: var(--border);
+  color: var(--accent);
 }
 
 .brand-mark {
