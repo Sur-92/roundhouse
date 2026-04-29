@@ -74,16 +74,26 @@ jobs:
             release/latest.yml
           retention-days: 90
 
-      - name: Generate auto release notes
+      - name: Apply CHANGELOG.md section as release notes
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          # electron-builder created the draft; populate its body with the
-          # standard GitHub-style "What's Changed" notes generated from the
-          # commits since the previous tag.
-          gh release edit "$TAG" \
-            --repo "${{ github.repository }}" \
-            --generate-notes
+          # Extract the section for this tag from CHANGELOG.md — everything
+          # between '## <tag> ' and the next '## v...' heading. CHANGELOG.md
+          # is the canonical source for both the in-app About dialog AND
+          # these GitHub Release notes.
+          awk -v tag="$TAG" '
+            $0 ~ "^## " tag " " { found=1; next }
+            found && /^## v[0-9]/ { exit }
+            found { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          if [ -s /tmp/release-notes.md ]; then
+            gh release edit "$TAG" \
+              --repo "${{ github.repository }}" \
+              --notes-file /tmp/release-notes.md
+          else
+            echo "::warning::No CHANGELOG.md section found for $TAG — release body left empty"
+          fi
