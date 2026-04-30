@@ -303,6 +303,17 @@ export function registerIpc(): void {
     db.prepare(`DELETE FROM ${t} WHERE id = ?`).run(id)
   })
 
+  ipcMain.handle('lookups:reorder', (_e, kind: LookupKind, orderedIds: number[]) => {
+    if (!Array.isArray(orderedIds) || !orderedIds.length) return
+    const t = lookupTable(kind)
+    const upd = db.prepare(`UPDATE ${t} SET sort_order = ? WHERE id = ?`)
+    const tx = db.transaction(() => {
+      // Spread by 10s so manual edits / inserts between rows still fit later.
+      orderedIds.forEach((id, idx) => upd.run((idx + 1) * 10, id))
+    })
+    tx()
+  })
+
   // ─── Files (export) ──────────────────────────────────
   ipcMain.handle('files:saveCsv', async (e: IpcMainInvokeEvent, defaultName: string, content: string) => {
     const win = BrowserWindow.fromWebContents(e.sender)

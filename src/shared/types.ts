@@ -221,6 +221,7 @@ export interface RoundhouseApi {
     create(kind: LookupKind, input: LookupInput): Promise<LookupRow>;
     update(kind: LookupKind, id: number, patch: Partial<LookupInput>): Promise<LookupRow>;
     delete(kind: LookupKind, id: number): Promise<void>;
+    reorder(kind: LookupKind, orderedIds: number[]): Promise<void>;
   };
   files: {
     saveCsv(defaultName: string, content: string): Promise<string | null>;

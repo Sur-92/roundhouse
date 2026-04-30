@@ -1,5 +1,12 @@
 # Roundhouse Release Notes
 
+## v0.4.7 — 2026-04-30
+
+### Drag-to-reorder dropdown options
+- **Settings → Item types / Scales / Conditions** rows are now draggable. Grab a row by its grip handle (⠿) and drop it where you want it; the order persists immediately and that's the order it appears in the matching dropdown when you create or edit an item.
+- Removed the manual "Sort order" number field from the Edit dialog — the drag handle replaces it. Cleaner UX, harder to mess up.
+- Resolves #7.
+
 ## v0.4.6 — 2026-04-30
 
 ### The actual Windows fix (this time, with proof)

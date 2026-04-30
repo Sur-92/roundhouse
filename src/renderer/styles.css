@@ -1157,10 +1157,36 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
   background: rgba(0, 0, 0, 0.2);
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.1s ease, background 0.1s ease;
 }
 
 .settings-row:hover { border-color: var(--border); }
+
+.settings-row[data-draggable="true"] { cursor: grab; }
+.settings-row[data-draggable="true"]:active { cursor: grabbing; }
+
+.settings-row.dragging {
+  opacity: 0.5;
+  border-color: var(--accent);
+  background: rgba(216, 160, 90, 0.12);
+}
+
+.settings-row.drag-over {
+  border-top: 2px solid var(--accent);
+  transform: translateY(2px);
+}
+
+.drag-grip {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 1.1rem;
+  user-select: none;
+  width: 16px;
+  text-align: center;
+  line-height: 1;
+}
+
+.settings-row:hover .drag-grip { color: var(--text-dim); }
 
 .settings-row-label {
   font-weight: 500;
