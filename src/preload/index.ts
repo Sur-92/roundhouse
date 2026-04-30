@@ -53,6 +53,9 @@ const api: RoundhouseApi = {
       ipcRenderer.on('roundhouse:show-release-notes', () => cb())
     }
   },
+  clipboard: {
+    readText: () => ipcRenderer.invoke('clipboard:readText') as Promise<string>
+  },
   ebay: {
     status: () => ipcRenderer.invoke('ebay:status') as Promise<EbayConfig>,
     searchForItem: (itemId: number, opts?: { force?: boolean }) =>

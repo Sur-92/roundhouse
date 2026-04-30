@@ -201,6 +201,9 @@ export interface RoundhouseApi {
     version(): Promise<string>;
     onReleaseNotesRequested(cb: () => void): void;
   };
+  clipboard: {
+    readText(): Promise<string>;
+  };
   ebay: {
     status(): Promise<EbayConfig>;
     searchForItem(itemId: number, opts?: { force?: boolean }): Promise<EbaySearchResult>;

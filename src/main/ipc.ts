@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow, app, type IpcMainInvokeEvent } from 'electron'
+import { ipcMain, dialog, BrowserWindow, app, clipboard, type IpcMainInvokeEvent } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { getDb } from './db'
 import * as photos from './photos'
@@ -326,6 +326,14 @@ export function registerIpc(): void {
 
   // ─── App ─────────────────────────────────────────────
   ipcMain.handle('app:version', () => app.getVersion())
+
+  // ─── Clipboard (Windows paste rescue) ────────────────
+  // Electron's clipboard module is privileged and reads the actual OS
+  // clipboard regardless of how Chromium's renderer-side sandbox handles
+  // the paste flow. Fixes Windows-specific paste failure from rich
+  // sources (ChatGPT, eBay) where Chromium's default paste path is
+  // unreliable.
+  ipcMain.handle('clipboard:readText', () => clipboard.readText())
 
   // ─── eBay (Browse API integration) ───────────────────
   ipcMain.handle('ebay:status', () => getEbayStatus())

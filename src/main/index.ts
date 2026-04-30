@@ -226,12 +226,23 @@ app.whenReady().then(() => {
         if (items.length) items.push({ type: 'separator' })
         if (params.editFlags.canSelectAll) items.push({ role: 'selectAll' })
       } else if (params.selectionText && params.selectionText.trim().length > 0) {
-        // User selected some text on a read-only label / row / description.
-        // Offer Copy. (Cut/Paste don't apply on read-only text.)
         items.push({ role: 'copy' })
       }
 
-      if (items.length) Menu.buildFromTemplate(items).popup({})
+      // Always offer "Inspect element" in dev — and in production too;
+      // this gives the user (or me on a screen-share) a way to confirm
+      // the menu is actually firing on Windows.
+      if (items.length) items.push({ type: 'separator' })
+      items.push({
+        label: 'Inspect',
+        click: () => contents.inspectElement(params.x, params.y)
+      })
+
+      // Bind the popup explicitly to the source window. Some Windows
+      // installs need this — Electron's popup() picks the wrong target
+      // window otherwise and the menu never paints.
+      const win = BrowserWindow.fromWebContents(contents) ?? undefined
+      Menu.buildFromTemplate(items).popup(win ? { window: win } : {})
     })
   })
 

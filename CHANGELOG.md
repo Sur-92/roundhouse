@@ -1,5 +1,14 @@
 # Roundhouse Release Notes
 
+## v0.4.4 — 2026-04-30
+
+### Windows clipboard, take three (the bulletproof one)
+- v0.4.2 / v0.4.3 didn't actually fix the Windows paste and right-click issues. This release retries with a more aggressive strategy that bypasses every layer that could be breaking.
+- **Paste now reads from Electron's privileged clipboard API in the main process** when the renderer's clipboardData is empty. Three layers of fallback: text/plain → text/html (tag-stripped) → OS-level clipboard via IPC. At least one of these will work for any normal copy.
+- **Ctrl+V is also intercepted at the keydown layer** so we don't depend on Chromium dispatching a paste event in the first place — useful if some Windows quirk is suppressing it entirely.
+- **Right-click context menu now binds explicitly to the source window** (some Windows installs need the popup target window set explicitly, otherwise the menu never paints).
+- Right-click menu now always includes an **Inspect** item so we can verify on a screen-share that the menu is firing at all.
+
 ## v0.4.3 — 2026-04-29
 
 - **Right-click on highlighted text now shows a Copy menu**, even on read-only labels (item names, descriptions, manufacturer text, etc.). Previously the context menu only appeared in editable fields, so highlighting a value to copy out and right-clicking gave nothing on Windows. The menu now also shows on any selected text outside an input.
