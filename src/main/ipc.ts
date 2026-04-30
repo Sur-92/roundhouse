@@ -6,6 +6,7 @@ import { getFeedbackStatus, listFeedbackIssues, createFeedbackIssue } from './fe
 import { getEbayStatus, searchForItem as ebaySearchForItem } from './ebay'
 import { shell } from 'electron'
 import { buildSearchClauses } from './search'
+import { diagLog, getDiagLogPath, openDiagLogInEditor, resetDiagLog } from './diag'
 import type {
   Collection, CollectionInput,
   TrainSet, TrainSetInput,
@@ -333,7 +334,24 @@ export function registerIpc(): void {
   // the paste flow. Fixes Windows-specific paste failure from rich
   // sources (ChatGPT, eBay) where Chromium's default paste path is
   // unreliable.
-  ipcMain.handle('clipboard:readText', () => clipboard.readText())
+  ipcMain.handle('clipboard:readText', () => {
+    try {
+      const text = clipboard.readText()
+      diagLog(`clipboard.readText() → ${text.length} chars [main]`)
+      return text
+    } catch (err) {
+      diagLog(`clipboard.readText() THREW: ${String(err)} [main]`)
+      throw err
+    }
+  })
+
+  // ─── Diagnostic log ──────────────────────────────────
+  ipcMain.handle('diag:log', (_e, msg: string) => {
+    diagLog(`[renderer] ${msg}`)
+  })
+  ipcMain.handle('diag:openLog', () => openDiagLogInEditor())
+  ipcMain.handle('diag:reset', () => { resetDiagLog() })
+  ipcMain.handle('diag:path', () => getDiagLogPath())
 
   // ─── eBay (Browse API integration) ───────────────────
   ipcMain.handle('ebay:status', () => getEbayStatus())

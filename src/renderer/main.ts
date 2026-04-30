@@ -16,6 +16,31 @@ window.roundhouse.app.onReleaseNotesRequested(() => {
   void openReleaseNotesModal()
 })
 
+// Diagnostic helper — fire-and-forget, never blocks.
+const diag = (msg: string): void => {
+  void window.roundhouse.diag.log(msg).catch(() => {})
+}
+
+// Surface any uncaught errors / promise rejections to the diag log so
+// they show up the next time the user opens it on Windows.
+window.addEventListener('error', (e) => {
+  diag(`window.error: ${e.message} at ${e.filename}:${e.lineno}`)
+})
+window.addEventListener('unhandledrejection', (e) => {
+  diag(`unhandledrejection: ${String(e.reason)}`)
+})
+
+// Renderer boot marker.
+diag(`renderer boot — ua=${navigator.userAgent}`)
+
+// Log every contextmenu event in the renderer so we can see if the
+// renderer is dispatching it at all. If this never fires on Windows,
+// something is intercepting right-clicks before the renderer.
+document.addEventListener('contextmenu', (e) => {
+  const t = e.target as HTMLElement | null
+  diag(`contextmenu event: target=${t?.tagName} editable=${t?.isContentEditable} selection.length=${(window.getSelection()?.toString() ?? '').length} defaultPrevented=${e.defaultPrevented}`)
+})
+
 // Cross-platform paste rescue. The renderer-side `paste` event flow
 // ranges from inconsistent (Windows + rich HTML clipboard) to outright
 // silent failure on some Chromium / sandbox / OS combos. So we hijack
@@ -65,9 +90,19 @@ async function fetchClipboardText(): Promise<string> {
 
 // Layer 1: paste event handler (fast path)
 document.addEventListener('paste', async (e: ClipboardEvent) => {
-  if (!isEditableTarget(e.target)) return
+  const t = e.target as HTMLElement | null
+  const types = e.clipboardData ? Array.from(e.clipboardData.types) : []
+  const plainLen = e.clipboardData?.getData('text/plain').length ?? -1
+  const htmlLen = e.clipboardData?.getData('text/html').length ?? -1
+  diag(`paste event: target=${t?.tagName}/${(t as HTMLInputElement)?.type ?? ''} editable=${isEditableTarget(t)} clipboard.types=${types.join(',') || 'none'} text/plain=${plainLen} text/html=${htmlLen}`)
+
+  if (!isEditableTarget(e.target)) {
+    diag('paste skipped: target not editable')
+    return
+  }
 
   let text = e.clipboardData?.getData('text/plain') ?? ''
+  let source = 'text/plain'
 
   // Windows + ChatGPT/eBay sometimes leaves text/plain empty — only the
   // rich HTML variant is on the clipboard. Try HTML next, stripping tags.
@@ -77,16 +112,24 @@ document.addEventListener('paste', async (e: ClipboardEvent) => {
       const div = document.createElement('div')
       div.innerHTML = html
       text = (div.textContent || div.innerText || '').trim()
+      if (text) source = 'text/html-stripped'
     }
   }
 
   // Last resort: ask main for the OS clipboard contents directly.
-  if (!text) text = await fetchClipboardText()
+  if (!text) {
+    text = await fetchClipboardText()
+    if (text) source = 'main.clipboard.readText'
+  }
 
-  if (!text) return  // genuinely nothing to paste; let default fire
+  if (!text) {
+    diag('paste: no text from any source — letting default fire')
+    return
+  }
 
   e.preventDefault()
   insertAtCaret(e.target as HTMLElement, text)
+  diag(`paste: inserted ${text.length} chars from ${source}`)
 })
 
 // Layer 2: keydown handler for Ctrl/Cmd+V — independent of whether
@@ -96,13 +139,14 @@ document.addEventListener('paste', async (e: ClipboardEvent) => {
 document.addEventListener('keydown', async (e: KeyboardEvent) => {
   if (e.key !== 'v' && e.key !== 'V') return
   if (!(e.ctrlKey || e.metaKey)) return
+  const t = e.target as HTMLElement | null
+  diag(`keydown Ctrl+V: target=${t?.tagName}/${(t as HTMLInputElement)?.type ?? ''} editable=${isEditableTarget(t)} defaultPrevented=${e.defaultPrevented}`)
   if (!isEditableTarget(e.target)) return
-  // If preventDefault has already been set by Layer 1, the browser's
-  // default paste won't fire — perfect, our insert already ran.
   if (e.defaultPrevented) return
-  // Otherwise, fetch the clipboard ourselves and insert.
   const text = await fetchClipboardText()
+  diag(`keydown Ctrl+V fallback: main returned ${text.length} chars`)
   if (!text) return
   e.preventDefault()
   insertAtCaret(e.target as HTMLElement, text)
+  diag('keydown Ctrl+V fallback: inserted')
 })

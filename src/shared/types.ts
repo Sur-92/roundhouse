@@ -204,6 +204,12 @@ export interface RoundhouseApi {
   clipboard: {
     readText(): Promise<string>;
   };
+  diag: {
+    log(msg: string): Promise<void>;
+    openLog(): Promise<string>;
+    reset(): Promise<void>;
+    path(): Promise<string>;
+  };
   ebay: {
     status(): Promise<EbayConfig>;
     searchForItem(itemId: number, opts?: { force?: boolean }): Promise<EbaySearchResult>;

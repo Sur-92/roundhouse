@@ -8,6 +8,7 @@ import { photosRoot } from './photos'
 import { loadFeedbackConfig } from './feedback'
 import { loadEbayConfig } from './ebay'
 import { setupAutoUpdater } from './updater'
+import { diagLog, diagSession, openDiagLogInEditor, resetDiagLog } from './diag'
 
 const isDev = !app.isPackaged
 
@@ -116,6 +117,19 @@ function buildApplicationMenu(): Menu {
           click: () => {
             shell.openExternal('https://github.com/Sur-92/roundhouse').catch(() => {})
           }
+        },
+        { type: 'separator' },
+        {
+          label: 'Show Diagnostic Log',
+          click: () => {
+            void openDiagLogInEditor()
+          }
+        },
+        {
+          label: 'Reset Diagnostic Log',
+          click: () => {
+            resetDiagLog()
+          }
         }
       ]
     }
@@ -199,6 +213,7 @@ app.whenReady().then(() => {
     }
   })
 
+  diagSession()                                   // session marker in diag.log
   getDb()                                         // open DB and apply schema
   loadFeedbackConfig()                            // read feedback.json if present
   loadEbayConfig()                                // read ebay.json if present
@@ -214,6 +229,7 @@ app.whenReady().then(() => {
   // does nothing on Windows, even though the OS expects Copy to be there.
   app.on('web-contents-created', (_e, contents) => {
     contents.on('context-menu', (_event, params) => {
+      diagLog(`context-menu event: isEditable=${params.isEditable} selectionText.length=${params.selectionText?.length ?? 0} x=${params.x} y=${params.y} mediaType=${params.mediaType}`)
       const items: Electron.MenuItemConstructorOptions[] = []
 
       if (params.isEditable) {
@@ -242,7 +258,12 @@ app.whenReady().then(() => {
       // installs need this — Electron's popup() picks the wrong target
       // window otherwise and the menu never paints.
       const win = BrowserWindow.fromWebContents(contents) ?? undefined
-      Menu.buildFromTemplate(items).popup(win ? { window: win } : {})
+      try {
+        Menu.buildFromTemplate(items).popup(win ? { window: win } : {})
+        diagLog(`context-menu popup() called; items=${items.map(i => i.role || i.label).join(',')}`)
+      } catch (err) {
+        diagLog(`context-menu popup() THREW: ${String(err)}`)
+      }
     })
   })
 

@@ -1,5 +1,12 @@
 # Roundhouse Release Notes
 
+## v0.4.5 — 2026-04-30
+
+### Diagnostic instrumentation
+- New **Help → Show Diagnostic Log** menu item opens a captured event log in your text editor. The log records every paste, every keydown Ctrl+V, every right-click, every clipboard read, and any errors — with timestamps, target element details, clipboard format inventory, and OS / app version context.
+- **Help → Reset Diagnostic Log** wipes it so a fresh test produces a clean trace.
+- Use case: when something doesn't behave (paste fails, right-click silent, etc.), reproduce the issue, open the log, and email the contents to the developer. Replaces guess-and-ship-and-hope debugging with concrete data.
+
 ## v0.4.4 — 2026-04-30
 
 ### Windows clipboard, take three (the bulletproof one)

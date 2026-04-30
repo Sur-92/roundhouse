@@ -56,6 +56,12 @@ const api: RoundhouseApi = {
   clipboard: {
     readText: () => ipcRenderer.invoke('clipboard:readText') as Promise<string>
   },
+  diag: {
+    log: (msg: string) => ipcRenderer.invoke('diag:log', msg) as Promise<void>,
+    openLog: () => ipcRenderer.invoke('diag:openLog') as Promise<string>,
+    reset: () => ipcRenderer.invoke('diag:reset') as Promise<void>,
+    path: () => ipcRenderer.invoke('diag:path') as Promise<string>
+  },
   ebay: {
     status: () => ipcRenderer.invoke('ebay:status') as Promise<EbayConfig>,
     searchForItem: (itemId: number, opts?: { force?: boolean }) =>
