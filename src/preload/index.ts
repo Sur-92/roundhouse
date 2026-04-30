@@ -6,7 +6,8 @@ import type {
   Item, ItemInput, ItemFilter,
   ItemPhoto,
   FeedbackStatus, FeedbackIssue, FeedbackInput,
-  LookupKind, LookupRow, LookupInput
+  LookupKind, LookupRow, LookupInput,
+  EbayConfig, EbaySearchResult
 } from '@shared/types'
 
 const api: RoundhouseApi = {
@@ -51,6 +52,12 @@ const api: RoundhouseApi = {
     onReleaseNotesRequested: (cb: () => void) => {
       ipcRenderer.on('roundhouse:show-release-notes', () => cb())
     }
+  },
+  ebay: {
+    status: () => ipcRenderer.invoke('ebay:status') as Promise<EbayConfig>,
+    searchForItem: (itemId: number, opts?: { force?: boolean }) =>
+      ipcRenderer.invoke('ebay:searchForItem', itemId, opts) as Promise<EbaySearchResult>,
+    openListing: (url: string) => ipcRenderer.invoke('ebay:openListing', url) as Promise<void>
   },
   lookups: {
     list: (kind: LookupKind) => ipcRenderer.invoke('lookups:list', kind) as Promise<LookupRow[]>,

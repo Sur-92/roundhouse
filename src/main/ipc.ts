@@ -3,6 +3,8 @@ import { writeFileSync } from 'node:fs'
 import { getDb } from './db'
 import * as photos from './photos'
 import { getFeedbackStatus, listFeedbackIssues, createFeedbackIssue } from './feedback'
+import { getEbayStatus, searchForItem as ebaySearchForItem } from './ebay'
+import { shell } from 'electron'
 import { buildSearchClauses } from './search'
 import type {
   Collection, CollectionInput,
@@ -324,4 +326,20 @@ export function registerIpc(): void {
 
   // ─── App ─────────────────────────────────────────────
   ipcMain.handle('app:version', () => app.getVersion())
+
+  // ─── eBay (Browse API integration) ───────────────────
+  ipcMain.handle('ebay:status', () => getEbayStatus())
+
+  ipcMain.handle('ebay:searchForItem', async (_e, itemId: number, opts?: { force?: boolean }) => {
+    const item = db.prepare('SELECT * FROM items WHERE id = ?').get(itemId) as Item | undefined
+    if (!item) throw new Error(`No item with id ${itemId}`)
+    return ebaySearchForItem(item, opts)
+  })
+
+  ipcMain.handle('ebay:openListing', async (_e, url: string) => {
+    if (typeof url !== 'string' || !/^https?:\/\/[^/]*ebay\.com\//.test(url)) {
+      throw new Error('Refusing to open non-eBay URL')
+    }
+    await shell.openExternal(url)
+  })
 }

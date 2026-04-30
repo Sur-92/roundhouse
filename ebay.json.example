@@ -1,0 +1,5 @@
+{
+  "app_id": "YOUR_PRODUCTION_APP_ID_aka_CLIENT_ID",
+  "cert_id": "YOUR_PRODUCTION_CERT_ID_aka_CLIENT_SECRET",
+  "marketplace": "EBAY_US"
+}

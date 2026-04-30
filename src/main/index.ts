@@ -6,6 +6,7 @@ import { getDb, closeDb } from './db'
 import { registerIpc } from './ipc'
 import { photosRoot } from './photos'
 import { loadFeedbackConfig } from './feedback'
+import { loadEbayConfig } from './ebay'
 import { setupAutoUpdater } from './updater'
 
 const isDev = !app.isPackaged
@@ -200,6 +201,7 @@ app.whenReady().then(() => {
 
   getDb()                                         // open DB and apply schema
   loadFeedbackConfig()                            // read feedback.json if present
+  loadEbayConfig()                                // read ebay.json if present
   registerIpc()                                   // wire handlers
   Menu.setApplicationMenu(buildApplicationMenu()) // app menu with About item
   createWindow()

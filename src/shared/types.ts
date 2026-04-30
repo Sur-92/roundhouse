@@ -111,6 +111,40 @@ export interface FeedbackInput {
   body: string | null;
 }
 
+// ─── eBay integration ────────────────────────────────────────
+
+export interface EbayConfig {
+  configured: boolean;
+  marketplace?: string;  // e.g. 'EBAY_US'
+}
+
+export interface EbayPrice {
+  value: string;
+  currency: string;
+}
+
+export interface EbayListing {
+  itemId: string;
+  title: string;
+  price: EbayPrice;
+  imageUrl: string | null;
+  condition: string | null;
+  url: string;
+  buyingOption: string;       // e.g. 'FIXED_PRICE', 'AUCTION'
+  endTime?: string;            // ISO timestamp for auctions
+  seller: {
+    username: string;
+    feedbackPercentage?: string;
+  };
+}
+
+export interface EbaySearchResult {
+  query: string;
+  total: number;
+  listings: EbayListing[];
+  fetchedAt: string;
+}
+
 
 export type CollectionInput = Omit<Collection, 'id' | 'created_at' | 'updated_at'>;
 export type TrainSetInput = Omit<TrainSet, 'id' | 'created_at' | 'updated_at'>;
@@ -166,6 +200,11 @@ export interface RoundhouseApi {
   app: {
     version(): Promise<string>;
     onReleaseNotesRequested(cb: () => void): void;
+  };
+  ebay: {
+    status(): Promise<EbayConfig>;
+    searchForItem(itemId: number, opts?: { force?: boolean }): Promise<EbaySearchResult>;
+    openListing(url: string): Promise<void>;
   };
   lookups: {
     list(kind: LookupKind): Promise<LookupRow[]>;

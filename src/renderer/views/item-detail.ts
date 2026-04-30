@@ -2,6 +2,7 @@ import { escapeHtml, on, typeLabel, conditionLabel, fmtCents, fmtDate } from '..
 import { confirmDialog } from '../lib/dialog'
 import { openLightbox } from '../lib/lightbox'
 import { openConditionHelp, conditionHelpDotHtml } from '../lib/condition-help'
+import { renderEbayPanel } from '../lib/ebay'
 import { openItemDialog } from './items'
 import { navigate } from '../router'
 import type { Item, ItemPhoto, TrainSet, Collection } from '@shared/types'
@@ -73,8 +74,14 @@ export async function renderItemDetail(el: HTMLElement, params: Record<string, s
       </div>
 
       ${item.notes ? `<section class="item-notes"><h3>Notes</h3><p>${escapeHtml(item.notes)}</p></section>` : ''}
+
+      <div id="ebay-mount"></div>
     </section>
   `
+
+  // Mount the eBay panel asynchronously so the rest of the page renders first.
+  const ebayMount = el.querySelector<HTMLDivElement>('#ebay-mount')
+  if (ebayMount) void renderEbayPanel(ebayMount, id)
 
   el.querySelector<HTMLButtonElement>('[data-action="edit"]')!.addEventListener('click', async () => {
     if (await openItemDialog(item)) await renderItemDetail(el, params)

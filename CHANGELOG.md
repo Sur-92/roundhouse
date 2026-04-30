@@ -1,5 +1,13 @@
 # Roundhouse Release Notes
 
+## v0.4.2 — 2026-04-29
+
+### Windows-only paste fix
+- **Pasting from ChatGPT, eBay, and other rich web sources now works on Windows.** Previously, the default paste path on Windows wasn't reliably grabbing the plain-text variant when the clipboard also held rich HTML — common for copies out of websites and AI chat. The app now intercepts the paste event and pulls the plain text directly from the clipboard, sidestepping the format-priority issue. macOS already worked correctly and remains unchanged.
+
+### Under the hood (dormant)
+- New "Active eBay listings" section on each item's detail page. Shows a graceful "Not set up yet" message until the developer drops eBay API credentials into the app's data folder; will then surface up to 12 matching active listings per item with thumbnails, prices, conditions, and a click-through to the eBay listing. This will light up in v0.5.0 once credentials are in place.
+
 ## v0.4.1 — 2026-04-29
 
 ### UX corrections
