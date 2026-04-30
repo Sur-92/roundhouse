@@ -200,6 +200,7 @@ export interface RoundhouseApi {
   app: {
     version(): Promise<string>;
     onReleaseNotesRequested(cb: () => void): void;
+    onMenuPaste(cb: () => void): void;
   };
   clipboard: {
     readText(): Promise<string>;

@@ -82,8 +82,19 @@ function buildApplicationMenu(): Menu {
         { type: 'separator' },
         { role: 'cut' },
         { role: 'copy' },
-        { role: 'paste' },
-        { role: 'pasteAndMatchStyle', label: 'Paste as plain text' },
+        // Custom paste — sends an IPC the renderer handles by reading
+        // clipboard via main's privileged clipboard.readText() and
+        // inserting at the caret. This bypasses webContents.paste() which
+        // silently fails on Windows + sandbox: true (Surface user
+        // diag log: zero paste events fired despite Ctrl+V being pressed
+        // multiple times). Same accelerator, same UX, working pipeline.
+        {
+          label: 'Paste',
+          accelerator: 'CommandOrControl+V',
+          click: (_, win) => {
+            if (win) (win as BrowserWindow).webContents.send('roundhouse:menu-paste')
+          }
+        },
         { type: 'separator' },
         { role: 'selectAll' }
       ]
@@ -150,6 +161,53 @@ function iconForBrowserWindow(): string | undefined {
   return undefined
 }
 
+/**
+ * Right-click context menu. Two cases:
+ *   1. Editable fields (textareas, inputs)         → Cut/Copy/Paste/Select All
+ *   2. Read-only text with an active selection     → Copy only
+ * Attached directly to a webContents instance, NOT via the app-wide
+ * web-contents-created event — that listener firing order was racy
+ * on Windows: the window's webContents was created before the listener
+ * existed, so the Surface user got no context menu at all (per the diag
+ * log showing renderer contextmenu firing but main never receiving).
+ */
+function attachContextMenu(contents: Electron.WebContents): void {
+  contents.on('context-menu', (_event, params) => {
+    diagLog(`context-menu event: isEditable=${params.isEditable} selectionText.length=${params.selectionText?.length ?? 0} x=${params.x} y=${params.y} mediaType=${params.mediaType}`)
+    const items: Electron.MenuItemConstructorOptions[] = []
+
+    if (params.isEditable) {
+      if (params.editFlags.canCut) items.push({ role: 'cut' })
+      if (params.editFlags.canCopy) items.push({ role: 'copy' })
+      if (params.editFlags.canPaste) {
+        // Custom paste handler — see comment on customPasteItem below.
+        items.push({
+          label: 'Paste',
+          click: () => contents.send('roundhouse:menu-paste')
+        })
+      }
+      if (items.length) items.push({ type: 'separator' })
+      if (params.editFlags.canSelectAll) items.push({ role: 'selectAll' })
+    } else if (params.selectionText && params.selectionText.trim().length > 0) {
+      items.push({ role: 'copy' })
+    }
+
+    if (items.length) items.push({ type: 'separator' })
+    items.push({
+      label: 'Inspect',
+      click: () => contents.inspectElement(params.x, params.y)
+    })
+
+    const win = BrowserWindow.fromWebContents(contents) ?? undefined
+    try {
+      Menu.buildFromTemplate(items).popup(win ? { window: win } : {})
+      diagLog(`context-menu popup() called; items=${items.map(i => i.role || i.label).join(',')}`)
+    } catch (err) {
+      diagLog(`context-menu popup() THREW: ${String(err)}`)
+    }
+  })
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1400,
@@ -172,6 +230,9 @@ function createWindow(): void {
   mainWindow = win
   win.on('closed', () => { mainWindow = null })
   win.once('ready-to-show', () => win.show())
+
+  // Attach context-menu handler directly to this window's webContents.
+  attachContextMenu(win.webContents)
 
   // Open external links in the default browser, never inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -221,51 +282,6 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(buildApplicationMenu()) // app menu with About item
   createWindow()
   setupAutoUpdater(() => mainWindow)              // check GitHub Releases for updates
-
-  // Right-click context menu. Two cases:
-  //   1. Editable fields (textareas, inputs)         → Cut/Copy/Paste/Select All
-  //   2. Read-only text with an active selection     → Copy only
-  // Without case 2, right-clicking a highlighted item name or description
-  // does nothing on Windows, even though the OS expects Copy to be there.
-  app.on('web-contents-created', (_e, contents) => {
-    contents.on('context-menu', (_event, params) => {
-      diagLog(`context-menu event: isEditable=${params.isEditable} selectionText.length=${params.selectionText?.length ?? 0} x=${params.x} y=${params.y} mediaType=${params.mediaType}`)
-      const items: Electron.MenuItemConstructorOptions[] = []
-
-      if (params.isEditable) {
-        if (params.editFlags.canCut) items.push({ role: 'cut' })
-        if (params.editFlags.canCopy) items.push({ role: 'copy' })
-        if (params.editFlags.canPaste) {
-          items.push({ role: 'paste' })
-          items.push({ role: 'pasteAndMatchStyle', label: 'Paste as plain text' })
-        }
-        if (items.length) items.push({ type: 'separator' })
-        if (params.editFlags.canSelectAll) items.push({ role: 'selectAll' })
-      } else if (params.selectionText && params.selectionText.trim().length > 0) {
-        items.push({ role: 'copy' })
-      }
-
-      // Always offer "Inspect element" in dev — and in production too;
-      // this gives the user (or me on a screen-share) a way to confirm
-      // the menu is actually firing on Windows.
-      if (items.length) items.push({ type: 'separator' })
-      items.push({
-        label: 'Inspect',
-        click: () => contents.inspectElement(params.x, params.y)
-      })
-
-      // Bind the popup explicitly to the source window. Some Windows
-      // installs need this — Electron's popup() picks the wrong target
-      // window otherwise and the menu never paints.
-      const win = BrowserWindow.fromWebContents(contents) ?? undefined
-      try {
-        Menu.buildFromTemplate(items).popup(win ? { window: win } : {})
-        diagLog(`context-menu popup() called; items=${items.map(i => i.role || i.label).join(',')}`)
-      } catch (err) {
-        diagLog(`context-menu popup() THREW: ${String(err)}`)
-      }
-    })
-  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

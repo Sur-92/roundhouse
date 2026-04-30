@@ -51,6 +51,9 @@ const api: RoundhouseApi = {
     version: () => ipcRenderer.invoke('app:version') as Promise<string>,
     onReleaseNotesRequested: (cb: () => void) => {
       ipcRenderer.on('roundhouse:show-release-notes', () => cb())
+    },
+    onMenuPaste: (cb: () => void) => {
+      ipcRenderer.on('roundhouse:menu-paste', () => cb())
     }
   },
   clipboard: {

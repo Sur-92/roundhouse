@@ -1,5 +1,13 @@
 # Roundhouse Release Notes
 
+## v0.4.6 — 2026-04-30
+
+### The actual Windows fix (this time, with proof)
+The diagnostic log shipped in v0.4.5 paid off on the very first session: it showed two specific bugs in the app code, not Norton, not the user's machine.
+
+- **Right-click context menu now actually attaches to the window.** Previously the listener was registered after the window was created, which on Windows raced — so the Surface user's renderer fired contextmenu events that main's handler never received. Listener is now bound directly to the window's webContents.
+- **Edit menu's Paste replaced with a custom IPC pipeline.** The previous `role: 'paste'` worked on Mac but silently failed on Windows + sandboxed renderer (the diag log showed zero paste events firing despite Ctrl+V being pressed). The new Paste reads the OS clipboard via main's privileged Electron API and inserts the text at the caret directly. Same accelerator, same UX, working pipeline.
+
 ## v0.4.5 — 2026-04-30
 
 ### Diagnostic instrumentation

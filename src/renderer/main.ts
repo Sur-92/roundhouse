@@ -16,6 +16,29 @@ window.roundhouse.app.onReleaseNotesRequested(() => {
   void openReleaseNotesModal()
 })
 
+// Edit menu → Paste (and Ctrl+V via the accelerator). Replaces the
+// previous role: 'paste' which silently failed on Windows + sandbox.
+// Reads OS clipboard via main, inserts at caret in the focused field.
+window.roundhouse.app.onMenuPaste(async () => {
+  const focused = document.activeElement
+  diag(`menu-paste IPC received; focused=${(focused as HTMLElement)?.tagName} editable=${isEditableTarget(focused)}`)
+  if (!isEditableTarget(focused)) {
+    diag('menu-paste: focused not editable, ignoring')
+    return
+  }
+  let text = ''
+  try {
+    text = await window.roundhouse.clipboard.readText()
+  } catch (err) {
+    diag(`menu-paste: clipboard.readText threw: ${String(err)}`)
+    return
+  }
+  diag(`menu-paste: clipboard returned ${text.length} chars`)
+  if (!text) return
+  insertAtCaret(focused as HTMLElement, text)
+  diag(`menu-paste: inserted ${text.length} chars`)
+})
+
 // Diagnostic helper — fire-and-forget, never blocks.
 const diag = (msg: string): void => {
   void window.roundhouse.diag.log(msg).catch(() => {})
