@@ -1,5 +1,9 @@
 # Roundhouse Release Notes
 
+## v0.4.3 — 2026-04-29
+
+- **Right-click on highlighted text now shows a Copy menu**, even on read-only labels (item names, descriptions, manufacturer text, etc.). Previously the context menu only appeared in editable fields, so highlighting a value to copy out and right-clicking gave nothing on Windows. The menu now also shows on any selected text outside an input.
+
 ## v0.4.2 — 2026-04-29
 
 ### Windows-only paste fix

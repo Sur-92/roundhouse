@@ -207,22 +207,30 @@ app.whenReady().then(() => {
   createWindow()
   setupAutoUpdater(() => mainWindow)              // check GitHub Releases for updates
 
-  // Right-click context menu in editable fields (textareas, inputs).
-  // Without this, Windows users right-click expecting a Paste option,
-  // see nothing, and conclude paste is broken — even though Ctrl+V
-  // works fine. Fixes user-reported issue #3.
+  // Right-click context menu. Two cases:
+  //   1. Editable fields (textareas, inputs)         → Cut/Copy/Paste/Select All
+  //   2. Read-only text with an active selection     → Copy only
+  // Without case 2, right-clicking a highlighted item name or description
+  // does nothing on Windows, even though the OS expects Copy to be there.
   app.on('web-contents-created', (_e, contents) => {
     contents.on('context-menu', (_event, params) => {
-      if (!params.isEditable) return
       const items: Electron.MenuItemConstructorOptions[] = []
-      if (params.editFlags.canCut) items.push({ role: 'cut' })
-      if (params.editFlags.canCopy) items.push({ role: 'copy' })
-      if (params.editFlags.canPaste) {
-        items.push({ role: 'paste' })
-        items.push({ role: 'pasteAndMatchStyle', label: 'Paste as plain text' })
+
+      if (params.isEditable) {
+        if (params.editFlags.canCut) items.push({ role: 'cut' })
+        if (params.editFlags.canCopy) items.push({ role: 'copy' })
+        if (params.editFlags.canPaste) {
+          items.push({ role: 'paste' })
+          items.push({ role: 'pasteAndMatchStyle', label: 'Paste as plain text' })
+        }
+        if (items.length) items.push({ type: 'separator' })
+        if (params.editFlags.canSelectAll) items.push({ role: 'selectAll' })
+      } else if (params.selectionText && params.selectionText.trim().length > 0) {
+        // User selected some text on a read-only label / row / description.
+        // Offer Copy. (Cut/Paste don't apply on read-only text.)
+        items.push({ role: 'copy' })
       }
-      if (items.length) items.push({ type: 'separator' })
-      if (params.editFlags.canSelectAll) items.push({ role: 'selectAll' })
+
       if (items.length) Menu.buildFromTemplate(items).popup({})
     })
   })
