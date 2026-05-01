@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   RoundhouseApi,
-  Collection, CollectionInput,
+  Collection, CollectionInput, CollectionKind,
   TrainSet, TrainSetInput,
   Item, ItemInput, ItemFilter,
   ItemPhoto,
@@ -12,8 +12,9 @@ import type {
 
 const api: RoundhouseApi = {
   collections: {
-    list: () => ipcRenderer.invoke('collections:list') as Promise<Collection[]>,
+    list: (kind?: CollectionKind) => ipcRenderer.invoke('collections:list', kind) as Promise<Collection[]>,
     get: (id) => ipcRenderer.invoke('collections:get', id) as Promise<Collection | null>,
+    getByKind: (kind: CollectionKind) => ipcRenderer.invoke('collections:getByKind', kind) as Promise<Collection | null>,
     create: (input: CollectionInput) => ipcRenderer.invoke('collections:create', input) as Promise<Collection>,
     update: (id, patch) => ipcRenderer.invoke('collections:update', id, patch) as Promise<Collection>,
     delete: (id) => ipcRenderer.invoke('collections:delete', id) as Promise<void>
@@ -72,11 +73,16 @@ const api: RoundhouseApi = {
     openListing: (url: string) => ipcRenderer.invoke('ebay:openListing', url) as Promise<void>
   },
   lookups: {
-    list: (kind: LookupKind) => ipcRenderer.invoke('lookups:list', kind) as Promise<LookupRow[]>,
-    create: (kind: LookupKind, input: LookupInput) => ipcRenderer.invoke('lookups:create', kind, input) as Promise<LookupRow>,
-    update: (kind: LookupKind, id: number, patch: Partial<LookupInput>) => ipcRenderer.invoke('lookups:update', kind, id, patch) as Promise<LookupRow>,
-    delete: (kind: LookupKind, id: number) => ipcRenderer.invoke('lookups:delete', kind, id) as Promise<void>,
-    reorder: (kind: LookupKind, orderedIds: number[]) => ipcRenderer.invoke('lookups:reorder', kind, orderedIds) as Promise<void>
+    list: (kind: LookupKind, collectionKind: CollectionKind) =>
+      ipcRenderer.invoke('lookups:list', kind, collectionKind) as Promise<LookupRow[]>,
+    create: (kind: LookupKind, collectionKind: CollectionKind, input: LookupInput) =>
+      ipcRenderer.invoke('lookups:create', kind, collectionKind, input) as Promise<LookupRow>,
+    update: (kind: LookupKind, id: number, patch: Partial<LookupInput>) =>
+      ipcRenderer.invoke('lookups:update', kind, id, patch) as Promise<LookupRow>,
+    delete: (kind: LookupKind, id: number) =>
+      ipcRenderer.invoke('lookups:delete', kind, id) as Promise<void>,
+    reorder: (kind: LookupKind, orderedIds: number[]) =>
+      ipcRenderer.invoke('lookups:reorder', kind, orderedIds) as Promise<void>
   },
   files: {
     saveCsv: (defaultName: string, content: string) =>

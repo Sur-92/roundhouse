@@ -3,23 +3,60 @@ import { openDialog, confirmDialog } from '../lib/dialog'
 import { fieldHtml, readForm } from '../lib/forms'
 import { loadLookups, lookupOptions, lookupLabel } from '../lib/lookups'
 import { openConditionHelp } from '../lib/condition-help'
-import { wireRowTable, itemRowHtml, ITEM_TABLE_HEAD } from '../lib/rows'
+import { wireRowTable, rowsForKind } from '../lib/rows'
 import { buildCsv } from '../lib/csv'
-import type { Item, ItemInput, ItemType, Scale, ItemFilter, TrainSet } from '@shared/types'
+import type { CollectionKind, Item, ItemInput, ItemType, Scale, ItemFilter, TrainSet } from '@shared/types'
 
-export async function renderItems(el: HTMLElement): Promise<void> {
+/**
+ * Kind-aware items list view.
+ *
+ * Routes:
+ *   /trains → renderItemsForKind(el, 'trains')
+ *   /coins  → renderItemsForKind(el, 'coins')
+ *
+ * The list columns, filter bar, item-create form, and CSV export all
+ * adapt to the collection kind. Each kind has its own collection (one
+ * for trains, one for coins) which is set up by the migration runner.
+ */
+export async function renderItemsForKind(el: HTMLElement, kind: CollectionKind): Promise<void> {
   await loadLookups()
-  const typeOptions = lookupOptions('type')
-  const scaleOptions = lookupOptions('scale', { includeBlank: false })
+
+  // Resolve the collection id for this kind (one per kind).
+  const collection = await window.roundhouse.collections.getByKind(kind)
+  const collectionId = collection?.id ?? null
+
+  const typeOptions = lookupOptions(kind, 'type')
+  const scaleOptions = kind === 'trains' ? lookupOptions(kind, 'scale') : []
+  const tableShape = rowsForKind(kind)
+  const title = kind === 'trains' ? 'Trains' : 'Coins'
+  const newLabel = kind === 'trains' ? 'New item' : 'New coin/bill'
+
+  // Coin list adds a Country filter; trains list adds a Scale filter.
+  const extraFilter = kind === 'coins'
+    ? `
+      <label class="field-inline">
+        <span class="field-label">Country</span>
+        <select id="f-country">
+          <option value="">All</option>
+        </select>
+      </label>`
+    : `
+      <label class="field-inline">
+        <span class="field-label">Scale</span>
+        <select id="f-scale">
+          <option value="">All</option>
+          ${scaleOptions.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('')}
+        </select>
+      </label>`
 
   el.innerHTML = `
     <section class="panel">
       <header class="panel-head">
-        <h2>Items</h2>
+        <h2>${escapeHtml(title)}</h2>
         <div class="head-actions">
           <button class="btn" data-action="export-csv" title="Export current list to CSV">📊 Export CSV</button>
           <button class="btn" data-action="print" title="Print current list">🖨 Print</button>
-          <button class="btn primary" data-action="new">New item</button>
+          <button class="btn primary" data-action="new">${escapeHtml(newLabel)}</button>
         </div>
       </header>
       <div class="filters no-print">
@@ -28,7 +65,7 @@ export async function renderItems(el: HTMLElement): Promise<void> {
             Search
             <button type="button" class="help-dot" popovertarget="search-help" aria-label="Search syntax help">?</button>
           </span>
-          <input id="f-search" type="search" placeholder="Name, manufacturer, model #…  (try mfg: for blank manufacturer)" />
+          <input id="f-search" type="search" placeholder="Search this collection…" />
         </label>
         <label class="field-inline">
           <span class="field-label">Type</span>
@@ -37,61 +74,13 @@ export async function renderItems(el: HTMLElement): Promise<void> {
             ${typeOptions.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('')}
           </select>
         </label>
-        <label class="field-inline">
-          <span class="field-label">Scale</span>
-          <select id="f-scale">
-            <option value="">All</option>
-            ${scaleOptions.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('')}
-          </select>
-        </label>
+        ${extraFilter}
         <div class="filters-summary" id="summary"></div>
       </div>
       <header class="print-header" id="print-header"></header>
-
-      <div id="search-help" popover="auto" class="help-popover">
-        <header class="help-popover-head">
-          <h3>Search tips</h3>
-          <button type="button" class="icon-btn" popovertarget="search-help" popovertargetaction="hide" aria-label="Close">×</button>
-        </header>
-        <p class="help-popover-lede">Type words to search by name, manufacturer, model number, and notes. The patterns below let you go further.</p>
-
-        <h4>Restrict to a field</h4>
-        <ul class="help-list">
-          <li><code>mfg:bachmann</code><span class="help-desc">manufacturer contains <em>bachmann</em></span></li>
-          <li><code>scale:HO</code><span class="help-desc">only HO scale</span></li>
-          <li><code>type:locomotive</code><span class="help-desc">only locomotives</span></li>
-          <li><code>year:1985</code><span class="help-desc">items from 1985</span></li>
-        </ul>
-
-        <h4>Find items missing a value</h4>
-        <ul class="help-list">
-          <li><code>mfg:</code><span class="help-desc">manufacturer is blank</span></li>
-          <li><code>year:</code><span class="help-desc">no year recorded</span></li>
-          <li><code>scale:</code><span class="help-desc">no scale assigned</span></li>
-          <li><code>photos:</code><span class="help-desc">no photos uploaded</span></li>
-          <li><code>-photos:</code><span class="help-desc">items that have at least one photo</span></li>
-        </ul>
-
-        <h4>Exclude with a minus</h4>
-        <ul class="help-list">
-          <li><code>-bachmann</code><span class="help-desc">exclude items matching <em>bachmann</em></span></li>
-          <li><code>-mfg:bachmann</code><span class="help-desc">exclude Bachmann manufacturer</span></li>
-          <li><code>-mfg:</code><span class="help-desc">only items that have a manufacturer</span></li>
-        </ul>
-
-        <h4>Combine</h4>
-        <ul class="help-list">
-          <li><code>scale:HO -mfg:</code><span class="help-desc">HO items with no manufacturer</span></li>
-          <li><code>"box car" -bachmann</code><span class="help-desc">phrase, excluding Bachmann</span></li>
-        </ul>
-
-        <h4>Available fields</h4>
-        <p class="help-desc">name, mfg, model, scale, type, condition, source, road, era, year, notes, photos</p>
-      </div>
-
       <div class="table-wrap">
         <table class="rh-table" id="rows">
-          ${ITEM_TABLE_HEAD}
+          ${tableShape.head}
           <tbody></tbody>
         </table>
       </div>
@@ -102,27 +91,40 @@ export async function renderItems(el: HTMLElement): Promise<void> {
   const tbody = table.querySelector('tbody')!
   const fSearch = el.querySelector<HTMLInputElement>('#f-search')!
   const fType = el.querySelector<HTMLSelectElement>('#f-type')!
-  const fScale = el.querySelector<HTMLSelectElement>('#f-scale')!
+  const fScale = el.querySelector<HTMLSelectElement>('#f-scale')
+  const fCountry = el.querySelector<HTMLSelectElement>('#f-country')
   const summary = el.querySelector<HTMLDivElement>('#summary')!
   const printHeader = el.querySelector<HTMLElement>('#print-header')!
 
-  // Pre-fill the search box if Home routed us here with a saved query.
+  // Pre-fill search if Home routed us here with a saved query.
   const seeded = sessionStorage.getItem('items.search')
   if (seeded) {
     fSearch.value = seeded
     sessionStorage.removeItem('items.search')
   }
 
-  // Cache the latest filter result so Print/Export operate on what's
-  // currently displayed without a redundant DB round-trip.
+  // Populate the country filter from distinct country values in this
+  // collection. (Coins only.)
+  if (fCountry && collectionId != null) {
+    const items = await window.roundhouse.items.list({ collectionId, collectionKind: kind })
+    const countries = Array.from(
+      new Set(items.map((i) => i.country).filter((c): c is string => !!c && c.length > 0))
+    ).sort()
+    fCountry.innerHTML += countries
+      .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
+      .join('')
+  }
+
   let lastItems: Item[] = []
   let lastFilterDescription = ''
 
   const buildFilter = (): ItemFilter => {
-    const filter: ItemFilter = {}
+    const filter: ItemFilter = { collectionKind: kind }
+    if (collectionId != null) filter.collectionId = collectionId
     if (fSearch.value.trim()) filter.search = fSearch.value.trim()
     if (fType.value) filter.type = fType.value as ItemType
-    if (fScale.value) filter.scale = fScale.value as Scale
+    if (fScale && fScale.value) filter.scale = fScale.value as Scale
+    if (fCountry && fCountry.value) filter.country = fCountry.value
     return filter
   }
 
@@ -131,7 +133,8 @@ export async function renderItems(el: HTMLElement): Promise<void> {
     if (filter.search) parts.push(`search “${filter.search}”`)
     if (filter.type) parts.push(`type ${lookupLabel('type', filter.type) || filter.type}`)
     if (filter.scale) parts.push(`scale ${lookupLabel('scale', filter.scale) || filter.scale}`)
-    return parts.length ? `Filtered by: ${parts.join(', ')}` : 'All items'
+    if (filter.country) parts.push(`country ${filter.country}`)
+    return parts.length ? `Filtered by: ${parts.join(', ')}` : `All ${title.toLowerCase()}`
   }
 
   const refresh = async (): Promise<void> => {
@@ -140,23 +143,32 @@ export async function renderItems(el: HTMLElement): Promise<void> {
     lastItems = items
     lastFilterDescription = describeFilter(filter)
 
-    const total = items.reduce((sum, i) => sum + (i.purchase_price_cents ?? 0), 0)
+    const totalCents = items.reduce(
+      (sum, i) => sum + (i.purchase_price_cents ?? 0),
+      0
+    )
+    const valueCents = items.reduce(
+      (sum, i) => sum + ((i.current_value_cents ?? 0) * (i.quantity || 1)),
+      0
+    )
     const summaryText = items.length
-      ? `${items.length} item${items.length === 1 ? '' : 's'} · ${fmtCents(total)} purchased`
-      : '0 items'
+      ? kind === 'coins'
+        ? `${items.length.toLocaleString()} record${items.length === 1 ? '' : 's'} · ${fmtCents(valueCents)} current value`
+        : `${items.length.toLocaleString()} item${items.length === 1 ? '' : 's'} · ${fmtCents(totalCents)} purchased`
+      : `0 ${kind === 'coins' ? 'records' : 'items'}`
     summary.textContent = summaryText
 
     const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     printHeader.innerHTML = `
-      <h2>Roundhouse — Items</h2>
+      <h2>Roundhouse — ${escapeHtml(title)}</h2>
       <p class="print-meta">${escapeHtml(lastFilterDescription)} · ${escapeHtml(summaryText)} · printed ${escapeHtml(today)}</p>
     `
 
     if (!items.length) {
-      tbody.innerHTML = `<tr><td colspan="9" class="empty-row">No items match.</td></tr>`
+      tbody.innerHTML = `<tr><td colspan="${tableShape.colspan}" class="empty-row">No items match.</td></tr>`
       return
     }
-    tbody.innerHTML = items.map(itemRowHtml).join('')
+    tbody.innerHTML = items.map(tableShape.row).join('')
   }
 
   let searchTimer: number | undefined
@@ -165,10 +177,11 @@ export async function renderItems(el: HTMLElement): Promise<void> {
     searchTimer = window.setTimeout(() => void refresh(), 200)
   })
   fType.addEventListener('change', () => void refresh())
-  fScale.addEventListener('change', () => void refresh())
+  fScale?.addEventListener('change', () => void refresh())
+  fCountry?.addEventListener('change', () => void refresh())
 
   el.querySelector<HTMLButtonElement>('[data-action="new"]')!.addEventListener('click', async () => {
-    if (await openItemDialog()) await refresh()
+    if (await openItemDialog(kind, undefined, { collectionId })) await refresh()
   })
 
   el.querySelector<HTMLButtonElement>('[data-action="print"]')!.addEventListener('click', () => {
@@ -176,10 +189,10 @@ export async function renderItems(el: HTMLElement): Promise<void> {
   })
 
   el.querySelector<HTMLButtonElement>('[data-action="export-csv"]')!.addEventListener('click', async () => {
-    const csv = buildItemsCsv(lastItems)
+    const csv = kind === 'coins' ? buildCoinsCsv(lastItems) : buildTrainsCsv(lastItems)
     const stamp = new Date().toISOString().slice(0, 10)
-    const path = await window.roundhouse.files.saveCsv(`roundhouse-items-${stamp}.csv`, csv)
-    if (path) console.log('Exported items CSV →', path)
+    const path = await window.roundhouse.files.saveCsv(`roundhouse-${kind}-${stamp}.csv`, csv)
+    if (path) console.log(`Exported ${kind} CSV →`, path)
   })
 
   wireRowTable(table, {
@@ -200,7 +213,12 @@ export async function renderItems(el: HTMLElement): Promise<void> {
   await refresh()
 }
 
-function buildItemsCsv(items: Item[]): string {
+// Backwards-compat alias for older routes that called renderItems(el).
+export async function renderItems(el: HTMLElement): Promise<void> {
+  return renderItemsForKind(el, 'trains')
+}
+
+function buildTrainsCsv(items: Item[]): string {
   const header = [
     'Name', 'Type', 'Scale', 'Manufacturer', 'Model #', 'Road name', 'Era', 'Year',
     'Condition', 'Original box', 'Purchase date', 'Purchase price', 'Current value',
@@ -227,78 +245,141 @@ function buildItemsCsv(items: Item[]): string {
   return buildCsv(header, rows)
 }
 
+function buildCoinsCsv(items: Item[]): string {
+  const header = [
+    'Name', 'Type', 'Country', 'Year', 'Face value', 'Denomination', 'Mint', 'Condition',
+    'Quantity', 'Value (each)', 'Total value', 'Purchase date', 'Purchase price',
+    'Source', 'Storage location', 'Notes'
+  ]
+  const rows = items.map((i) => {
+    const qty = i.quantity || 1
+    const total = i.current_value_cents != null ? (i.current_value_cents * qty / 100).toFixed(2) : ''
+    return [
+      i.name,
+      typeLabel(i.type),
+      i.country ?? '',
+      i.year ?? '',
+      i.face_value ?? '',
+      i.denomination ?? '',
+      i.mint_mark ?? '',
+      i.condition ? conditionLabel(i.condition) : '',
+      qty,
+      i.current_value_cents != null ? (i.current_value_cents / 100).toFixed(2) : '',
+      total,
+      i.purchase_date ? fmtDate(i.purchase_date) : '',
+      i.purchase_price_cents != null ? (i.purchase_price_cents / 100).toFixed(2) : '',
+      i.source ?? '',
+      i.storage_location ?? '',
+      i.notes ?? ''
+    ]
+  })
+  return buildCsv(header, rows)
+}
+
+// ─── Item dialog (kind-aware) ──────────────────────────────────
+
 export async function openItemDialog(
+  kind: CollectionKind,
   existing?: Item,
-  defaults?: { setId?: number | null; scale?: Scale | null }
+  defaults?: { setId?: number | null; scale?: Scale | null; collectionId?: number | null }
 ): Promise<boolean> {
   await loadLookups()
-  const typeOptions = lookupOptions('type')
-  const scaleOptions = lookupOptions('scale', { includeBlank: true })
-  const conditionOptions = lookupOptions('condition', { includeBlank: true })
+  const typeOptions = lookupOptions(kind, 'type')
+  const scaleOptions = kind === 'trains' ? lookupOptions(kind, 'scale', { includeBlank: true }) : []
+  const conditionOptions = lookupOptions(kind, 'condition', { includeBlank: true })
 
-  const collections = await window.roundhouse.collections.list()
-  const allSets = await window.roundhouse.sets.list()
-  const setsByCollection = new Map<number, TrainSet[]>()
-  for (const s of allSets) {
-    const arr = setsByCollection.get(s.collection_id) ?? []
-    arr.push(s)
-    setsByCollection.set(s.collection_id, arr)
-  }
-
-  const currentSetId = existing?.set_id ?? defaults?.setId ?? ''
-  const setOptionsHtml = `
-    <option value=""${currentSetId === '' || currentSetId == null ? ' selected' : ''}>— No set —</option>
-    ${collections
-      .map((c) => {
-        const sets = setsByCollection.get(c.id) ?? []
-        if (!sets.length) return ''
-        return `<optgroup label="${escapeHtml(c.name)}">${sets
-          .map(
-            (s) =>
-              `<option value="${s.id}"${Number(currentSetId) === s.id ? ' selected' : ''}>${escapeHtml(s.name)}</option>`
-          )
-          .join('')}</optgroup>`
-      })
-      .join('')}
-  `
+  const collectionId = existing?.collection_id ?? defaults?.collectionId ?? null
 
   const body = document.createElement('form')
   body.className = 'rh-form'
-  body.innerHTML = `
-    <div class="rh-form-grid">
-      ${fieldHtml({ label: 'Name', name: 'name', value: existing?.name, required: true, span: 2 })}
-      ${fieldHtml({ label: 'Type', name: 'type', type: 'select', value: existing?.type ?? typeOptions[0]?.value ?? '', options: typeOptions, required: true })}
-      <label class="field" for="f-set_id">
-        <span class="field-label">Set</span>
-        <select id="f-set_id" name="set_id">${setOptionsHtml}</select>
-      </label>
-      ${fieldHtml({ label: 'Manufacturer', name: 'manufacturer', value: existing?.manufacturer })}
-      ${fieldHtml({ label: 'Model number', name: 'model_number', value: existing?.model_number })}
-      ${fieldHtml({ label: 'Scale', name: 'scale', type: 'select', value: existing?.scale ?? defaults?.scale ?? '', options: scaleOptions })}
-      ${fieldHtml({ label: 'Road name', name: 'road_name', value: existing?.road_name, placeholder: 'e.g. Union Pacific' })}
-      ${fieldHtml({ label: 'Era', name: 'era', value: existing?.era, placeholder: 'e.g. III' })}
-      ${fieldHtml({ label: 'Year', name: 'year', type: 'number', value: existing?.year })}
-      <label class="field" for="f-condition">
-        <span class="field-label">
-          Condition
-          <button type="button" class="help-dot" data-action="condition-help" aria-label="Condition grading help">?</button>
-        </span>
-        <select id="f-condition" name="condition">
-          ${conditionOptions.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === (existing?.condition ?? '') ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
-        </select>
-      </label>
-      ${fieldHtml({ label: 'Original box', name: 'original_box', type: 'checkbox', value: existing?.original_box ? '1' : '' })}
-      ${fieldHtml({ label: 'Purchase date', name: 'purchase_date', type: 'date', value: existing?.purchase_date })}
-      ${fieldHtml({ label: 'Purchase price', name: 'purchase_price_cents', type: 'currency', value: existing?.purchase_price_cents != null ? (existing.purchase_price_cents / 100).toFixed(2) : '' })}
-      ${fieldHtml({ label: 'Current value', name: 'current_value_cents', type: 'currency', value: existing?.current_value_cents != null ? (existing.current_value_cents / 100).toFixed(2) : '' })}
-      ${fieldHtml({ label: 'Source', name: 'source', value: existing?.source, placeholder: 'e.g. eBay, Facebook, gift' })}
-      ${fieldHtml({ label: 'Storage location', name: 'storage_location', value: existing?.storage_location })}
-      ${fieldHtml({ label: 'Notes', name: 'notes', type: 'textarea', value: existing?.notes, span: 2 })}
-    </div>
-  `
 
-  // Wire the Condition help-dot to the shared help dialog (replaces the
-  // earlier popover-based attempt — works even if popover API misbehaves).
+  const conditionField = `
+    <label class="field" for="f-condition">
+      <span class="field-label">
+        Condition
+        <button type="button" class="help-dot" data-action="condition-help" aria-label="Condition grading help">?</button>
+      </span>
+      <select id="f-condition" name="condition">
+        ${conditionOptions.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === (existing?.condition ?? '') ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+      </select>
+    </label>`
+
+  const sharedTail = `
+    ${conditionField}
+    ${fieldHtml({ label: 'Purchase date', name: 'purchase_date', type: 'date', value: existing?.purchase_date })}
+    ${fieldHtml({ label: 'Purchase price', name: 'purchase_price_cents', type: 'currency', value: existing?.purchase_price_cents != null ? (existing.purchase_price_cents / 100).toFixed(2) : '' })}
+    ${fieldHtml({ label: 'Current value', name: 'current_value_cents', type: 'currency', value: existing?.current_value_cents != null ? (existing.current_value_cents / 100).toFixed(2) : '' })}
+    ${fieldHtml({ label: 'Source', name: 'source', value: existing?.source, placeholder: 'e.g. eBay, Facebook, gift' })}
+    ${fieldHtml({ label: 'Storage location', name: 'storage_location', value: existing?.storage_location })}
+    ${fieldHtml({ label: 'Notes', name: 'notes', type: 'textarea', value: existing?.notes, span: 2 })}`
+
+  if (kind === 'coins') {
+    body.innerHTML = `
+      <div class="rh-form-grid">
+        ${fieldHtml({ label: 'Name', name: 'name', value: existing?.name, required: true, span: 2, placeholder: 'e.g. 1898 Morgan Silver Dollar' })}
+        ${fieldHtml({ label: 'Type', name: 'type', type: 'select', value: existing?.type ?? typeOptions[0]?.value ?? 'coin', options: typeOptions, required: true })}
+        ${fieldHtml({ label: 'Country', name: 'country', value: existing?.country, placeholder: 'e.g. USA, Canada, UK' })}
+        ${fieldHtml({ label: 'Face value', name: 'face_value', type: 'number', value: existing?.face_value ?? '', placeholder: 'e.g. 1, 25, 1000' })}
+        ${fieldHtml({ label: 'Denomination', name: 'denomination', value: existing?.denomination, placeholder: 'e.g. Dollar, Pesos, Yuan' })}
+        ${fieldHtml({ label: 'Year', name: 'year', type: 'number', value: existing?.year })}
+        ${fieldHtml({ label: 'Mint mark', name: 'mint_mark', value: existing?.mint_mark, placeholder: 'e.g. P, D, S, W' })}
+        ${fieldHtml({ label: 'Quantity', name: 'quantity', type: 'number', value: existing?.quantity ?? 1, required: true })}
+        ${sharedTail}
+      </div>
+    `
+  } else {
+    // Trains form (the original)
+    const allSets = await window.roundhouse.sets.list()
+    const setsByCollection = new Map<number, TrainSet[]>()
+    for (const s of allSets) {
+      const arr = setsByCollection.get(s.collection_id) ?? []
+      arr.push(s)
+      setsByCollection.set(s.collection_id, arr)
+    }
+    const trainCollections = await window.roundhouse.collections.list('trains')
+    const currentSetId = existing?.set_id ?? defaults?.setId ?? ''
+    const setOptionsHtml = `
+      <option value=""${currentSetId === '' || currentSetId == null ? ' selected' : ''}>— No set —</option>
+      ${trainCollections
+        .map((c) => {
+          const sets = setsByCollection.get(c.id) ?? []
+          if (!sets.length) return ''
+          return `<optgroup label="${escapeHtml(c.name)}">${sets
+            .map(
+              (s) =>
+                `<option value="${s.id}"${Number(currentSetId) === s.id ? ' selected' : ''}>${escapeHtml(s.name)}</option>`
+            )
+            .join('')}</optgroup>`
+        })
+        .join('')}
+    `
+
+    body.innerHTML = `
+      <div class="rh-form-grid">
+        ${fieldHtml({ label: 'Name', name: 'name', value: existing?.name, required: true, span: 2 })}
+        ${fieldHtml({ label: 'Type', name: 'type', type: 'select', value: existing?.type ?? typeOptions[0]?.value ?? '', options: typeOptions, required: true })}
+        <label class="field" for="f-set_id">
+          <span class="field-label">Set</span>
+          <select id="f-set_id" name="set_id">${setOptionsHtml}</select>
+        </label>
+        ${fieldHtml({ label: 'Manufacturer', name: 'manufacturer', value: existing?.manufacturer })}
+        ${fieldHtml({ label: 'Model number', name: 'model_number', value: existing?.model_number })}
+        ${fieldHtml({ label: 'Scale', name: 'scale', type: 'select', value: existing?.scale ?? defaults?.scale ?? '', options: scaleOptions })}
+        ${fieldHtml({ label: 'Road name', name: 'road_name', value: existing?.road_name, placeholder: 'e.g. Union Pacific' })}
+        ${fieldHtml({ label: 'Era', name: 'era', value: existing?.era, placeholder: 'e.g. III' })}
+        ${fieldHtml({ label: 'Year', name: 'year', type: 'number', value: existing?.year })}
+        ${conditionField}
+        ${fieldHtml({ label: 'Original box', name: 'original_box', type: 'checkbox', value: existing?.original_box ? '1' : '' })}
+        ${fieldHtml({ label: 'Purchase date', name: 'purchase_date', type: 'date', value: existing?.purchase_date })}
+        ${fieldHtml({ label: 'Purchase price', name: 'purchase_price_cents', type: 'currency', value: existing?.purchase_price_cents != null ? (existing.purchase_price_cents / 100).toFixed(2) : '' })}
+        ${fieldHtml({ label: 'Current value', name: 'current_value_cents', type: 'currency', value: existing?.current_value_cents != null ? (existing.current_value_cents / 100).toFixed(2) : '' })}
+        ${fieldHtml({ label: 'Source', name: 'source', value: existing?.source, placeholder: 'e.g. eBay, Facebook, gift' })}
+        ${fieldHtml({ label: 'Storage location', name: 'storage_location', value: existing?.storage_location })}
+        ${fieldHtml({ label: 'Notes', name: 'notes', type: 'textarea', value: existing?.notes, span: 2 })}
+      </div>
+    `
+  }
+
   body.addEventListener('click', (e) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action="condition-help"]')
     if (target) {
@@ -308,30 +389,37 @@ export async function openItemDialog(
   })
 
   return openDialog({
-    title: existing ? 'Edit item' : 'New item',
+    title: existing ? `Edit ${kind === 'coins' ? 'coin/bill' : 'item'}` : `New ${kind === 'coins' ? 'coin/bill' : 'item'}`,
     body,
     submitLabel: existing ? 'Save changes' : 'Create',
     onSubmit: async () => {
       if (!body.reportValidity()) return false
       const data = readForm(body, ['purchase_price_cents', 'current_value_cents'])
+
       const payload: ItemInput = {
         set_id: data['set_id'] != null ? Number(data['set_id']) : null,
-        type: (data['type'] as ItemType) || 'other',
+        collection_id: collectionId,
+        type: (data['type'] as ItemType) || (kind === 'coins' ? 'coin' : 'other'),
         name: String(data['name'] ?? ''),
-        manufacturer: data['manufacturer'] as string | null,
-        model_number: data['model_number'] as string | null,
+        manufacturer: (data['manufacturer'] as string | null) ?? null,
+        model_number: (data['model_number'] as string | null) ?? null,
         scale: (data['scale'] as Scale | null) ?? null,
-        road_name: data['road_name'] as string | null,
-        era: data['era'] as string | null,
+        road_name: (data['road_name'] as string | null) ?? null,
+        era: (data['era'] as string | null) ?? null,
+        country: (data['country'] as string | null) ?? null,
+        face_value: data['face_value'] != null ? Number(data['face_value']) : null,
+        denomination: (data['denomination'] as string | null) ?? null,
+        mint_mark: (data['mint_mark'] as string | null) ?? null,
+        quantity: data['quantity'] != null ? Math.max(1, Number(data['quantity'])) : 1,
         year: data['year'] != null ? Number(data['year']) : null,
         condition: (data['condition'] as ItemInput['condition']) ?? null,
         original_box: data['original_box'] === 1 ? 1 : data['original_box'] === 0 ? 0 : null,
-        purchase_date: data['purchase_date'] as string | null,
-        purchase_price_cents: data['purchase_price_cents'] as number | null,
-        current_value_cents: data['current_value_cents'] as number | null,
-        storage_location: data['storage_location'] as string | null,
-        source: data['source'] as string | null,
-        notes: data['notes'] as string | null
+        purchase_date: (data['purchase_date'] as string | null) ?? null,
+        purchase_price_cents: (data['purchase_price_cents'] as number | null) ?? null,
+        current_value_cents: (data['current_value_cents'] as number | null) ?? null,
+        storage_location: (data['storage_location'] as string | null) ?? null,
+        source: (data['source'] as string | null) ?? null,
+        notes: (data['notes'] as string | null) ?? null
       }
       if (existing) await window.roundhouse.items.update(existing.id, payload)
       else await window.roundhouse.items.create(payload)

@@ -1,5 +1,5 @@
 import { escapeHtml, fmtCents, fmtDate, typeLabel } from './dom'
-import type { Item, TrainSet, Collection } from '@shared/types'
+import type { CollectionKind, Item, TrainSet, Collection } from '@shared/types'
 
 /**
  * Wire up row navigation and per-row action delegation on a <table> element.
@@ -33,7 +33,9 @@ export function wireRowTable(
   })
 }
 
-export function itemRowHtml(item: Item): string {
+// ─── Train items table ────────────────────────────────────
+
+export function trainItemRowHtml(item: Item): string {
   const thumb = item.primary_photo_path
     ? `<img class="row-thumb" src="${window.roundhouse.photos.url(item.primary_photo_path)}" alt="" loading="lazy" />`
     : `<span class="row-thumb-empty" title="No photo">📷</span>`
@@ -53,7 +55,7 @@ export function itemRowHtml(item: Item): string {
     </tr>`
 }
 
-export const ITEM_TABLE_HEAD = `
+export const TRAIN_ITEM_TABLE_HEAD = `
   <thead>
     <tr>
       <th class="col-thumb"></th>
@@ -67,6 +69,67 @@ export const ITEM_TABLE_HEAD = `
       <th class="col-actions"></th>
     </tr>
   </thead>`
+
+// ─── Coin items table ─────────────────────────────────────
+
+export function coinItemRowHtml(item: Item): string {
+  const thumb = item.primary_photo_path
+    ? `<img class="row-thumb" src="${window.roundhouse.photos.url(item.primary_photo_path)}" alt="" loading="lazy" />`
+    : `<span class="row-thumb-empty" title="No photo">🪙</span>`
+  const totalCents = item.current_value_cents != null ? item.current_value_cents * (item.quantity || 1) : null
+  const faceDisplay = item.face_value != null
+    ? `${item.face_value}${item.denomination ? ' ' + escapeHtml(item.denomination) : ''}`
+    : (item.denomination ? escapeHtml(item.denomination) : '')
+  return `
+    <tr data-href="/items/${item.id}">
+      <td class="col-thumb" data-no-nav>${thumb}</td>
+      <td class="col-name">${escapeHtml(item.name)}</td>
+      <td><span class="chip chip-type">${escapeHtml(typeLabel(item.type))}</span></td>
+      <td>${item.country ? escapeHtml(item.country) : '<span class="muted">—</span>'}</td>
+      <td class="col-num">${item.year != null ? String(item.year) : '<span class="muted">—</span>'}</td>
+      <td>${faceDisplay || '<span class="muted">—</span>'}</td>
+      <td class="col-mono">${item.mint_mark ? escapeHtml(item.mint_mark) : '<span class="muted">—</span>'}</td>
+      <td class="col-num">${item.quantity || 1}</td>
+      <td class="col-num">${item.current_value_cents != null ? fmtCents(item.current_value_cents) : '<span class="muted">—</span>'}</td>
+      <td class="col-num">${totalCents != null ? fmtCents(totalCents) : '<span class="muted">—</span>'}</td>
+      <td class="col-actions" data-no-nav>
+        <button class="icon-btn danger" data-action="delete-item" data-id="${item.id}" title="Delete">🗑</button>
+      </td>
+    </tr>`
+}
+
+export const COIN_ITEM_TABLE_HEAD = `
+  <thead>
+    <tr>
+      <th class="col-thumb"></th>
+      <th class="col-name">Name</th>
+      <th>Type</th>
+      <th>Country</th>
+      <th class="col-num">Year</th>
+      <th>Denomination</th>
+      <th>Mint</th>
+      <th class="col-num">Qty</th>
+      <th class="col-num">Value</th>
+      <th class="col-num">Total</th>
+      <th class="col-actions"></th>
+    </tr>
+  </thead>`
+
+// Backwards-compat exports (existing callers): default to train layout
+export const itemRowHtml = trainItemRowHtml
+export const ITEM_TABLE_HEAD = TRAIN_ITEM_TABLE_HEAD
+
+/** Pick the right row-renderer + table-head pair for a collection kind. */
+export function rowsForKind(kind: CollectionKind): {
+  head: string
+  row: (item: Item) => string
+  colspan: number
+} {
+  if (kind === 'coins') {
+    return { head: COIN_ITEM_TABLE_HEAD, row: coinItemRowHtml, colspan: 11 }
+  }
+  return { head: TRAIN_ITEM_TABLE_HEAD, row: trainItemRowHtml, colspan: 9 }
+}
 
 export function setRowHtml(s: TrainSet, opts: { itemCount: number; collection?: Collection }): string {
   return `

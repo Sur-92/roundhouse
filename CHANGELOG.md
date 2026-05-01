@@ -1,5 +1,23 @@
 # Roundhouse Release Notes
 
+## v0.5.0 — 2026-04-30
+
+### Coins are first-class now
+Roundhouse is no longer just for trains. Every collection is now tagged with a *kind* — **trains** or **coins** — and the entire UI follows suit.
+
+- **Two collections, side-by-side.** The home screen now opens onto your real wallpaper with two small cards near the bottom: 🚂 **Trains** and 🪙 **Coins**. Each shows item count and total value. The old single-card layout that hid the background is gone.
+- **Top nav matches.** The header now reads **Trains · Coins · Requests · Settings**. The Trains tab opens your train inventory list (same as before, just filtered to kind=trains). The Coins tab opens an inventory list with coin-specific columns.
+- **Coin-specific fields.** Coin records carry *country*, *face value*, *denomination*, *mint mark*, *year*, *quantity*, *condition*, and *current value* — instead of *scale*, *manufacturer*, *model #*, *road name*, and *era*. The add/edit form changes shape based on which collection you're in.
+- **Coin-specific listing.** The Coins page columns are *Type · Country · Year · Denomination · Mint · Qty · Value · Total*. Filters include Country instead of Scale. CSV export uses coin-shaped columns.
+- **Coin-specific lookups.** Settings → Lookups gained a **Trains / Coins** tab at the top. Each kind has its own Type and Condition lists (coins ship with the Sheldon scale: poor through proof; bills with crisp uncirculated, etc.). Scale only exists for trains.
+- **eBay query is kind-aware.** Looking up a coin builds a query around year + country + face-value/denomination + mint mark instead of manufacturer + model #. Search results stay tightly relevant.
+
+### New background
+- The home screen now uses a trains+coins+globe collage with the embedded plaque "ROUNDHOUSE — TRAINS · COINS · JOURNEYS." Replaces the previous train-only scene.
+
+### Migration
+- Existing trains DBs migrate forward automatically: all existing items get linked to a "trains" collection, lookup tables grow a `kind` column with backfilled values, and a default "Coin Collection" is auto-created so the Coins tab works on first run.
+
 ## v0.4.7 — 2026-04-30
 
 ### Drag-to-reorder dropdown options

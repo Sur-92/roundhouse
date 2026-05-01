@@ -64,7 +64,8 @@ export async function renderSetDetail(el: HTMLElement, params: Record<string, st
   })
 
   el.querySelector<HTMLButtonElement>('[data-action="new-item"]')!.addEventListener('click', async () => {
-    if (await openItemDialog(undefined, { setId: id, scale: set.scale })) await refresh()
+    // Sets only exist for train collections, so this is always 'trains'.
+    if (await openItemDialog('trains', undefined, { setId: id, scale: set.scale })) await refresh()
   })
 
   wireRowTable(table, {

@@ -84,7 +84,14 @@ export async function renderItemDetail(el: HTMLElement, params: Record<string, s
   if (ebayMount) void renderEbayPanel(ebayMount, id)
 
   el.querySelector<HTMLButtonElement>('[data-action="edit"]')!.addEventListener('click', async () => {
-    if (await openItemDialog(item)) await renderItemDetail(el, params)
+    // Determine the item's collection kind so the dialog renders the
+    // correct field set (train fields vs coin fields).
+    let itemKind: 'trains' | 'coins' = 'trains'
+    if (item.collection_id) {
+      const coll = await window.roundhouse.collections.get(item.collection_id)
+      if (coll) itemKind = coll.kind
+    }
+    if (await openItemDialog(itemKind, item)) await renderItemDetail(el, params)
   })
 
   // Condition help-dot in the read-only fields list

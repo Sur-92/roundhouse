@@ -110,13 +110,27 @@ async function getApplicationToken(): Promise<string> {
 
 /**
  * Build an eBay search query from the item's identifying fields.
- * Strategy: heaviest signal first.
- *   - model_number is unique → quoted, included if present
- *   - manufacturer is high-signal → included
- *   - first 2-3 words of name (stripping the "Locomotive - " style prefix)
- *   - scale only if room (search is more permissive without it)
+ * Two flavors based on which kind of collection the item lives in:
+ *
+ *  - Train items use manufacturer + model + name + scale (heaviest
+ *    signal first, scale appended only when there's room).
+ *  - Coin/bill items use year + country + face_value + denomination
+ *    + mint mark, falling back to a portion of the name when the
+ *    structured fields are sparse.
+ *
+ * Kind is inferred from which set of fields is populated on the item;
+ * coins always have at least country/face_value/denomination filled.
  */
 export function buildEbayQuery(item: Item): string {
+  if (isCoinItem(item)) return buildCoinQuery(item)
+  return buildTrainQuery(item)
+}
+
+function isCoinItem(item: Item): boolean {
+  return !!(item.country || item.denomination || item.face_value != null || item.mint_mark)
+}
+
+function buildTrainQuery(item: Item): string {
   const parts: string[] = []
 
   if (item.manufacturer && item.manufacturer.trim()) {
@@ -129,17 +143,53 @@ export function buildEbayQuery(item: Item): string {
   // Strip leading prefix from name: "Locomotive - Big Boy" → "Big Boy".
   const stripped = item.name.replace(/^[^-]+\s+-\s+/, '').trim()
   if (stripped) {
-    // Keep first 3 words to avoid noise from long descriptive names.
     const namePart = stripped.split(/\s+/).slice(0, 3).join(' ')
     if (namePart && !parts.some((p) => p.toLowerCase().includes(namePart.toLowerCase()))) {
       parts.push(namePart)
     }
   }
 
-  // Only append scale if the query is short enough to add specificity
-  // without throwing eBay's search relevance off.
   if (item.scale && parts.join(' ').length < 40) {
     parts.push(item.scale)
+  }
+
+  return parts.join(' ').trim() || item.name
+}
+
+function buildCoinQuery(item: Item): string {
+  const parts: string[] = []
+
+  if (item.year != null) parts.push(String(item.year))
+  if (item.country && item.country.trim()) parts.push(item.country.trim())
+
+  // "1 Dollar", "20 Pesos", "1000 Yuan" — quote so eBay treats it as a
+  // unit rather than splitting into separate tokens.
+  if (item.face_value != null && item.denomination) {
+    parts.push(`"${item.face_value} ${item.denomination.trim()}"`)
+  } else if (item.denomination) {
+    parts.push(item.denomination.trim())
+  } else if (item.face_value != null) {
+    parts.push(String(item.face_value))
+  }
+
+  if (item.mint_mark && item.mint_mark.trim()) {
+    parts.push(item.mint_mark.trim())
+  }
+
+  // If the structured fields are sparse, append a few words from the
+  // item name (often something like "Morgan Silver Dollar").
+  if (parts.length < 3 && item.name) {
+    const namePart = item.name
+      .replace(/^[^-]+\s+-\s+/, '')
+      .split(/\s+/)
+      .slice(0, 4)
+      .join(' ')
+    if (namePart) {
+      const lower = namePart.toLowerCase()
+      if (!parts.some((p) => lower.includes(p.toLowerCase()))) {
+        parts.push(namePart)
+      }
+    }
   }
 
   return parts.join(' ').trim() || item.name

@@ -32,8 +32,8 @@ from openpyxl import load_workbook
 
 # Mac dev path. On Windows this script wouldn't run anyway since Roundhouse
 # isn't packaged for Mac use long-term — this is dev-only seed data.
-DEFAULT_DB = Path.home() / "Library" / "Application Support" / "Roundhouse" / "roundhouse.db"
-DEFAULT_COLLECTION_NAME = "Imported Inventory"
+DEFAULT_DB = Path.home() / "Library" / "Application Support" / "roundhouse" / "roundhouse.db"
+DEFAULT_COLLECTION_NAME = "Carey's Trains"
 
 VALID_SCALES = {"Z", "N", "HO", "OO", "S", "O", "G"}
 
@@ -182,6 +182,11 @@ def main() -> int:
               file=sys.stderr)
         return 3
 
+    # Sanity-check we have the kind column (v0.5.0+).
+    coll_cols = [r[1] for r in db.execute("PRAGMA table_info(collections)").fetchall()]
+    has_kind = "kind" in coll_cols
+    has_collection_id = "collection_id" in cols
+
     existing = db.execute("SELECT id FROM collections WHERE name = ?",
                           (collection_name,)).fetchone()
     if existing and not args.force:
@@ -192,10 +197,16 @@ def main() -> int:
         print(f"   --force: deleting existing collection (id={existing[0]}) and its sets/items")
         db.execute("DELETE FROM collections WHERE id = ?", (existing[0],))
 
-    cur = db.execute(
-        "INSERT INTO collections (name, description) VALUES (?, ?)",
-        (collection_name, collection_desc),
-    )
+    if has_kind:
+        cur = db.execute(
+            "INSERT INTO collections (name, description, kind) VALUES (?, ?, 'trains')",
+            (collection_name, collection_desc),
+        )
+    else:
+        cur = db.execute(
+            "INSERT INTO collections (name, description) VALUES (?, ?)",
+            (collection_name, collection_desc),
+        )
     coll_id = cur.lastrowid
     print(f"✓ Created collection '{collection_name}' (id={coll_id})")
 
@@ -205,14 +216,24 @@ def main() -> int:
     inserted = 0
     skipped = 0
 
-    insert_sql = """
-        INSERT INTO items (
-            set_id, type, name, manufacturer, model_number, scale,
-            road_name, era, year, condition, original_box,
-            purchase_date, purchase_price_cents, current_value_cents,
-            storage_location, source, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """
+    if has_collection_id:
+        insert_sql = """
+            INSERT INTO items (
+                collection_id, set_id, type, name, manufacturer, model_number, scale,
+                road_name, era, year, condition, original_box,
+                purchase_date, purchase_price_cents, current_value_cents,
+                storage_location, source, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    else:
+        insert_sql = """
+            INSERT INTO items (
+                set_id, type, name, manufacturer, model_number, scale,
+                road_name, era, year, condition, original_box,
+                purchase_date, purchase_price_cents, current_value_cents,
+                storage_location, source, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
 
     with db:
         for r in data_rows:
@@ -234,28 +255,27 @@ def main() -> int:
                 note_parts.append(str(clean(notes)))
             merged_notes = " · ".join(note_parts) if note_parts else None
 
-            db.execute(
-                insert_sql,
-                (
-                    None,                          # set_id
-                    type_,                         # type
-                    name,                          # name
-                    clean(mfg),                    # manufacturer
-                    clean(number),                 # model_number
-                    scale,                         # scale
-                    None,                          # road_name (not in source)
-                    None,                          # era
-                    None,                          # year
-                    None,                          # condition
-                    None,                          # original_box
-                    to_iso_date(purchased),        # purchase_date
-                    to_cents(price),               # purchase_price_cents
-                    None,                          # current_value_cents
-                    None,                          # storage_location
-                    clean(source),                 # source
-                    merged_notes,                  # notes
-                ),
+            base_row = (
+                None,                          # set_id
+                type_,                         # type
+                name,                          # name
+                clean(mfg),                    # manufacturer
+                clean(number),                 # model_number
+                scale,                         # scale
+                None,                          # road_name (not in source)
+                None,                          # era
+                None,                          # year
+                None,                          # condition
+                None,                          # original_box
+                to_iso_date(purchased),        # purchase_date
+                to_cents(price),               # purchase_price_cents
+                None,                          # current_value_cents
+                None,                          # storage_location
+                clean(source),                 # source
+                merged_notes,                  # notes
             )
+            row = (coll_id, *base_row) if has_collection_id else base_row
+            db.execute(insert_sql, row)
             inserted += 1
             by_type[type_] = by_type.get(type_, 0) + 1
             if scale:

@@ -2,59 +2,94 @@ import { escapeHtml, on } from '../lib/dom'
 import { openDialog, confirmDialog } from '../lib/dialog'
 import { fieldHtml, readForm } from '../lib/forms'
 import { loadLookups } from '../lib/lookups'
-import type { LookupKind, LookupRow, LookupInput } from '@shared/types'
+import type { CollectionKind, LookupKind, LookupRow, LookupInput } from '@shared/types'
 
 interface SectionConfig {
   kind: LookupKind
   title: string
   description: string
-  /** Hint shown next to the value field in the dialog */
   valueHint?: string
+  /** When set, omit this section for collection kinds in this list. */
+  hideForKinds?: CollectionKind[]
 }
 
 const SECTIONS: SectionConfig[] = [
   {
     kind: 'type',
     title: 'Item types',
-    description: 'Categories for items — Locomotive, Rolling stock, Building, etc. Drag rows to set the order they appear in the Type dropdown.',
+    description: 'Categories shown in the Type dropdown when you create or edit an item. Drag rows by their grip handle (⠿) to reorder.',
     valueHint: 'A short identifier (e.g. passenger_car). Cannot contain spaces; we recommend snake_case.'
   },
   {
     kind: 'scale',
     title: 'Scales',
-    description: 'Model scales — HO, N, O, etc. Add specialty scales like ON30 or 1/64 here. Drag rows to set the order in the Scale dropdown.',
-    valueHint: 'The scale name as you want it stored (e.g. ON30).'
+    description: 'Model scales — HO, N, O, etc. Add specialty scales like ON30 or 1/64 here. Drag to reorder.',
+    valueHint: 'The scale name as you want it stored (e.g. ON30).',
+    hideForKinds: ['coins']  // Coins don't have scales.
   },
   {
     kind: 'condition',
     title: 'Conditions',
-    description: 'Condition labels for items — New, Excellent, For parts, etc. Drag rows to set the order in the Condition dropdown.',
+    description: 'Condition labels for items. Trains use the TCA grading scale; coins use the Sheldon scale. Drag to reorder.',
     valueHint: 'A short identifier (e.g. mint, restoration_project).'
   }
 ]
 
+const KIND_TABS: Array<{ kind: CollectionKind; label: string }> = [
+  { kind: 'trains', label: 'Trains' },
+  { kind: 'coins', label: 'Coins' }
+]
+
+/** Sticky-ish "currently editing this kind" — defaults to trains, persists in sessionStorage so navigating away and back keeps you on the same tab. */
+function activeKind(): CollectionKind {
+  const k = sessionStorage.getItem('settings.kind')
+  return k === 'coins' ? 'coins' : 'trains'
+}
+function setActiveKind(k: CollectionKind): void {
+  sessionStorage.setItem('settings.kind', k)
+}
+
 export async function renderSettings(el: HTMLElement): Promise<void> {
+  const kind = activeKind()
+
   el.innerHTML = `
     <section class="panel">
       <header class="panel-head">
         <div>
           <h2>Settings</h2>
-          <p class="muted">Customize the dropdowns that appear when you create or edit items. Drag rows by their grip handle (⠿) to reorder.</p>
+          <p class="muted">Customize the dropdown options that appear when you create or edit items. Drag rows by the grip (⠿) to reorder.</p>
         </div>
       </header>
+
+      <nav class="kind-tabs" id="kind-tabs">
+        ${KIND_TABS.map((t) => `
+          <button class="kind-tab ${t.kind === kind ? 'active' : ''}" data-kind="${t.kind}">${escapeHtml(t.label)}</button>
+        `).join('')}
+      </nav>
+
       <div class="settings-sections" id="sections"></div>
     </section>
   `
 
-  const host = el.querySelector<HTMLDivElement>('#sections')!
-  host.innerHTML = SECTIONS.map(sectionShellHtml).join('')
+  el.querySelector<HTMLElement>('#kind-tabs')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('.kind-tab')
+    if (!btn) return
+    const newKind = (btn.dataset['kind'] as CollectionKind) || 'trains'
+    if (newKind === kind) return
+    setActiveKind(newKind)
+    void renderSettings(el)
+  })
 
-  for (const section of SECTIONS) {
-    void hydrateSection(section, host)
+  const host = el.querySelector<HTMLDivElement>('#sections')!
+  const sections = SECTIONS.filter((s) => !s.hideForKinds?.includes(kind))
+  host.innerHTML = sections.map((s) => sectionShellHtml(s, kind)).join('')
+
+  for (const section of sections) {
+    void hydrateSection(section, kind, host)
   }
 }
 
-function sectionShellHtml(s: SectionConfig): string {
+function sectionShellHtml(s: SectionConfig, kind: CollectionKind): string {
   return `
     <section class="settings-section" data-kind="${s.kind}">
       <header class="settings-section-head">
@@ -64,19 +99,19 @@ function sectionShellHtml(s: SectionConfig): string {
         </div>
         <button class="btn primary" data-action="new">New ${escapeHtml(s.kind)}</button>
       </header>
-      <div class="settings-list" data-list>
+      <div class="settings-list" data-list data-collection-kind="${kind}">
         <p class="muted">Loading…</p>
       </div>
     </section>`
 }
 
-async function hydrateSection(s: SectionConfig, host: HTMLElement): Promise<void> {
+async function hydrateSection(s: SectionConfig, collectionKind: CollectionKind, host: HTMLElement): Promise<void> {
   const sectionEl = host.querySelector<HTMLElement>(`.settings-section[data-kind="${s.kind}"]`)!
   const listEl = sectionEl.querySelector<HTMLElement>('[data-list]')!
   let cachedRows: LookupRow[] = []
 
   const refresh = async (): Promise<void> => {
-    cachedRows = await window.roundhouse.lookups.list(s.kind)
+    cachedRows = await window.roundhouse.lookups.list(s.kind, collectionKind)
     if (!cachedRows.length) {
       listEl.innerHTML = `<p class="empty">None yet.</p>`
       return
@@ -85,13 +120,13 @@ async function hydrateSection(s: SectionConfig, host: HTMLElement): Promise<void
   }
 
   sectionEl.querySelector<HTMLButtonElement>('[data-action="new"]')!.addEventListener('click', async () => {
-    if (await openLookupDialog(s, undefined)) await refresh()
+    if (await openLookupDialog(s, collectionKind, undefined)) await refresh()
   })
 
   on<HTMLButtonElement>(listEl, '[data-action="edit"]', 'click', async (_e, btn) => {
     const id = Number(btn.dataset['id'])
     const row = cachedRows.find((r) => r.id === id)
-    if (row && (await openLookupDialog(s, row))) await refresh()
+    if (row && (await openLookupDialog(s, collectionKind, row))) await refresh()
   })
 
   on<HTMLButtonElement>(listEl, '[data-action="delete"]', 'click', async (_e, btn) => {
@@ -128,9 +163,6 @@ async function hydrateSection(s: SectionConfig, host: HTMLElement): Promise<void
   })
 
   // ─── Drag-to-reorder ─────────────────────────────────
-  // Same pattern as the photo gallery's drag-reorder. Source row is
-  // tagged on dragstart, drop targets get a visual cue, on drop we
-  // compute the new order and persist via lookups:reorder.
   let dragId: number | null = null
 
   listEl.addEventListener('dragstart', (e) => {
@@ -167,7 +199,6 @@ async function hydrateSection(s: SectionConfig, host: HTMLElement): Promise<void
     if (dragId == null || !overRow) { dragId = null; return }
     const overId = Number(overRow.dataset['id'])
     if (dragId === overId) { dragId = null; return }
-    // Build new order: remove dragId, insert before overId.
     const newOrder = cachedRows.map((r) => r.id).filter((id) => id !== dragId)
     const insertAt = newOrder.indexOf(overId)
     newOrder.splice(insertAt < 0 ? newOrder.length : insertAt, 0, dragId)
@@ -216,7 +247,11 @@ function lookupRowHtml(row: LookupRow): string {
     </article>`
 }
 
-async function openLookupDialog(section: SectionConfig, existing: LookupRow | undefined): Promise<boolean> {
+async function openLookupDialog(
+  section: SectionConfig,
+  collectionKind: CollectionKind,
+  existing: LookupRow | undefined
+): Promise<boolean> {
   const isSystem = !!existing?.is_system
   const body = document.createElement('form')
   body.className = 'rh-form'
@@ -241,7 +276,7 @@ async function openLookupDialog(section: SectionConfig, existing: LookupRow | un
       ${fieldHtml({ label: 'Label', name: 'label', value: existing?.label, required: true, placeholder: 'How it appears in the dropdown' })}
     </div>
     ${section.valueHint ? `<p class="muted small">${escapeHtml(section.valueHint)}</p>` : ''}
-    <p class="muted small">The order rows appear in the dropdown is set by drag-and-drop on the Settings page — no need to enter a sort number.</p>
+    <p class="muted small">The order in the dropdown is set by drag-and-drop on the Settings page.</p>
   `
 
   return openDialog({
@@ -260,7 +295,7 @@ async function openLookupDialog(section: SectionConfig, existing: LookupRow | un
         if (existing) {
           await window.roundhouse.lookups.update(section.kind, existing.id, payload)
         } else {
-          await window.roundhouse.lookups.create(section.kind, payload as LookupInput)
+          await window.roundhouse.lookups.create(section.kind, collectionKind, payload as LookupInput)
         }
         await loadLookups({ force: true })
         return true

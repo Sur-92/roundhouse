@@ -133,7 +133,107 @@ main#view {
 .breadcrumb a { text-decoration: none; }
 .breadcrumb .sep { color: var(--muted); }
 
-/* ─── Hero / home ─────────────────────────────────────── */
+/* ─── Home (v0.5.0) ───────────────────────────────────── */
+.home-overlay {
+  min-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 2rem 2.5rem;
+  gap: 1rem;
+}
+
+.home-greeting {
+  text-align: center;
+  background: rgba(20, 14, 10, 0.55);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  align-self: center;
+  max-width: 720px;
+}
+
+.home-greeting h2 {
+  margin: 0 0 0.15rem;
+  font-size: 1.4rem;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.home-greeting p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.collection-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+@media (max-width: 700px) {
+  .collection-cards { grid-template-columns: 1fr; }
+}
+
+.collection-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--text);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: border-color 0.15s ease, transform 0.05s ease, background 0.15s ease;
+}
+
+.collection-card:hover {
+  border-color: var(--accent);
+  background: rgba(40, 30, 22, 0.92);
+  color: var(--text);
+  transform: translateY(-2px);
+}
+
+.collection-card:active { transform: translateY(0); }
+
+.collection-emoji {
+  font-size: 2.2rem;
+  line-height: 1;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.collection-card-body { flex: 1; min-width: 0; }
+
+.collection-card-body h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1.15rem;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.collection-stats {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.collection-stats strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Older .hero styles kept for any non-home views still using them */
 .hero {
   max-width: 760px;
   margin: 4rem auto;
@@ -1107,6 +1207,42 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
   margin-top: 0.25rem;
   font-size: 0.78rem;
   opacity: 0.75;
+}
+
+/* ─── Settings kind tabs ──────────────────────────────── */
+.kind-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.5rem 0 1.25rem;
+  padding: 0.25rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  width: fit-content;
+}
+
+.kind-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  padding: 0.4rem 1rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.kind-tab:hover {
+  color: var(--text);
+  background: rgba(216, 160, 90, 0.08);
+}
+
+.kind-tab.active {
+  color: var(--text);
+  background: rgba(216, 160, 90, 0.22);
+  border-color: var(--accent);
 }
 
 /* ─── Settings page ───────────────────────────────────── */

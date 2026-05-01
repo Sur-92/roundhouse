@@ -8,7 +8,7 @@ import { shell } from 'electron'
 import { buildSearchClauses } from './search'
 import { diagLog, getDiagLogPath, openDiagLogInEditor, resetDiagLog } from './diag'
 import type {
-  Collection, CollectionInput,
+  Collection, CollectionInput, CollectionKind,
   TrainSet, TrainSetInput,
   Item, ItemInput, ItemFilter,
   ItemPhoto,
@@ -28,11 +28,16 @@ function lookupTable(kind: LookupKind): string {
   return t
 }
 
-const COLLECTION_FIELDS = ['name', 'description'] as const
+const COLLECTION_FIELDS = ['name', 'description', 'kind'] as const
 const SET_FIELDS = ['collection_id', 'name', 'description', 'scale', 'manufacturer', 'era', 'notes'] as const
 const ITEM_FIELDS = [
-  'set_id', 'type', 'name', 'manufacturer', 'model_number', 'scale',
-  'road_name', 'era', 'year', 'condition', 'original_box',
+  'set_id', 'collection_id', 'type', 'name',
+  // Train fields
+  'manufacturer', 'model_number', 'scale', 'road_name', 'era',
+  // Coin fields
+  'country', 'face_value', 'denomination', 'mint_mark', 'quantity',
+  // Shared
+  'year', 'condition', 'original_box',
   'purchase_date', 'purchase_price_cents', 'current_value_cents',
   'storage_location', 'source', 'notes'
 ] as const
@@ -54,17 +59,24 @@ export function registerIpc(): void {
   const db = getDb()
 
   // ─── Collections ─────────────────────────────────────────────
-  ipcMain.handle('collections:list', () =>
-    db.prepare('SELECT * FROM collections ORDER BY name').all() as Collection[]
-  )
+  ipcMain.handle('collections:list', (_e, kind?: CollectionKind) => {
+    if (kind) {
+      return db.prepare('SELECT * FROM collections WHERE kind = ? ORDER BY name').all(kind) as Collection[]
+    }
+    return db.prepare('SELECT * FROM collections ORDER BY kind, name').all() as Collection[]
+  })
 
   ipcMain.handle('collections:get', (_e, id: number) =>
     (db.prepare('SELECT * FROM collections WHERE id = ?').get(id) as Collection | undefined) ?? null
   )
 
+  ipcMain.handle('collections:getByKind', (_e, kind: CollectionKind) => {
+    return (db.prepare('SELECT * FROM collections WHERE kind = ? ORDER BY id LIMIT 1').get(kind) as Collection | undefined) ?? null
+  })
+
   ipcMain.handle('collections:create', (_e, input: CollectionInput) => {
-    const r = db.prepare('INSERT INTO collections (name, description) VALUES (?, ?)')
-      .run(input.name, input.description)
+    const r = db.prepare('INSERT INTO collections (name, description, kind) VALUES (?, ?, ?)')
+      .run(input.name, input.description, input.kind || 'trains')
     return db.prepare('SELECT * FROM collections WHERE id = ?').get(r.lastInsertRowid) as Collection
   })
 
@@ -118,11 +130,17 @@ export function registerIpc(): void {
 
     if (filter.setId != null) { where.push('i.set_id = ?'); params.push(filter.setId) }
     if (filter.collectionId != null) {
-      where.push('i.set_id IN (SELECT id FROM sets WHERE collection_id = ?)')
-      params.push(filter.collectionId)
+      // Match items linked directly to the collection OR via a set in it.
+      where.push('(i.collection_id = ? OR i.set_id IN (SELECT id FROM sets WHERE collection_id = ?))')
+      params.push(filter.collectionId, filter.collectionId)
+    }
+    if (filter.collectionKind) {
+      where.push('i.collection_id IN (SELECT id FROM collections WHERE kind = ?)')
+      params.push(filter.collectionKind)
     }
     if (filter.type) { where.push('i.type = ?'); params.push(filter.type) }
     if (filter.scale) { where.push('i.scale = ?'); params.push(filter.scale) }
+    if (filter.country) { where.push('i.country = ?'); params.push(filter.country) }
     if (filter.hasPhotos === true) {
       where.push('EXISTS (SELECT 1 FROM item_photos WHERE item_id = i.id)')
     } else if (filter.hasPhotos === false) {
@@ -261,22 +279,27 @@ export function registerIpc(): void {
   ipcMain.handle('feedback:list', async () => listFeedbackIssues())
   ipcMain.handle('feedback:create', async (_e, input: FeedbackInput) => createFeedbackIssue(input))
 
-  // ─── Lookups (Type / Scale / Condition) ──────────────
-  ipcMain.handle('lookups:list', (_e, kind: LookupKind) => {
+  // ─── Lookups (Type / Scale / Condition, per CollectionKind) ──
+  ipcMain.handle('lookups:list', (_e, kind: LookupKind, collectionKind: CollectionKind) => {
     const t = lookupTable(kind)
-    return db.prepare(`SELECT * FROM ${t} ORDER BY sort_order, label`).all() as LookupRow[]
+    return db.prepare(
+      `SELECT * FROM ${t} WHERE kind = ? ORDER BY sort_order, label`
+    ).all(collectionKind) as LookupRow[]
   })
 
-  ipcMain.handle('lookups:create', (_e, kind: LookupKind, input: LookupInput) => {
+  ipcMain.handle('lookups:create', (_e, kind: LookupKind, collectionKind: CollectionKind, input: LookupInput) => {
     const t = lookupTable(kind)
     const value = String(input.value ?? '').trim()
     const label = String(input.label ?? value).trim() || value
     if (!value) throw new Error('Value is required')
-    // Default sort_order: max + 10 so user-added rows append after system rows.
-    const next = (db.prepare(`SELECT COALESCE(MAX(sort_order), 0) + 10 AS n FROM ${t}`).get() as { n: number }).n
+    // Default sort_order: max + 10 within this collectionKind so user-added rows append after system rows.
+    const next = (db.prepare(
+      `SELECT COALESCE(MAX(sort_order), 0) + 10 AS n FROM ${t} WHERE kind = ?`
+    ).get(collectionKind) as { n: number }).n
     const sort = input.sort_order != null ? Number(input.sort_order) : next
-    const r = db.prepare(`INSERT INTO ${t} (value, label, sort_order, is_system) VALUES (?, ?, ?, 0)`)
-      .run(value, label, sort)
+    const r = db.prepare(
+      `INSERT INTO ${t} (kind, value, label, sort_order, is_system) VALUES (?, ?, ?, ?, 0)`
+    ).run(collectionKind, value, label, sort)
     return db.prepare(`SELECT * FROM ${t} WHERE id = ?`).get(r.lastInsertRowid) as LookupRow
   })
 

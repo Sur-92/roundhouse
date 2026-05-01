@@ -3,7 +3,7 @@ import { renderCollections } from './views/collections'
 import { renderCollectionDetail } from './views/collection-detail'
 import { renderSets } from './views/sets'
 import { renderSetDetail } from './views/set-detail'
-import { renderItems } from './views/items'
+import { renderItems, renderItemsForKind } from './views/items'
 import { renderItemDetail } from './views/item-detail'
 import { renderRequests } from './views/requests'
 import { renderSettings } from './views/settings'
@@ -33,8 +33,10 @@ const routes: CompiledRoute[] = [
   compile('/collections/:id', renderCollectionDetail, '/collections'),
   compile('/sets', renderSets, '/sets'),
   compile('/sets/:id', renderSetDetail, '/sets'),
-  compile('/items', renderItems, '/items'),
-  compile('/items/:id', renderItemDetail, '/items'),
+  compile('/items', renderItems, '/trains'),
+  compile('/items/:id', renderItemDetail, '/trains'),
+  compile('/trains', (el) => renderItemsForKind(el, 'trains'), '/trains'),
+  compile('/coins', (el) => renderItemsForKind(el, 'coins'), '/coins'),
   compile('/requests', renderRequests, '/requests'),
   compile('/settings', renderSettings, '/settings')
 ]

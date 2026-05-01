@@ -10,10 +10,14 @@ export type ItemType = string;
 export type Scale = string;
 export type Condition = string;
 
+/** v0.5.0: a Collection is one of two kinds. */
+export type CollectionKind = 'trains' | 'coins';
+
 export type LookupKind = 'type' | 'scale' | 'condition';
 
 export interface LookupRow {
   id: number;
+  kind: CollectionKind;
   value: string;
   label: string;
   sort_order: number;
@@ -31,6 +35,7 @@ export interface Collection {
   id: number;
   name: string;
   description: string | null;
+  kind: CollectionKind;
   created_at: string;
   updated_at: string;
 }
@@ -51,13 +56,22 @@ export interface TrainSet {
 export interface Item {
   id: number;
   set_id: number | null;
+  collection_id: number | null;
   type: ItemType;
   name: string;
+  // Train fields (sparse for coins)
   manufacturer: string | null;
   model_number: string | null;
   scale: Scale | null;
   road_name: string | null;
   era: string | null;
+  // Coin fields (sparse for trains)
+  country: string | null;
+  face_value: number | null;
+  denomination: string | null;
+  mint_mark: string | null;
+  quantity: number;
+  // Shared
   year: number | null;
   condition: Condition | null;
   original_box: 0 | 1 | null;
@@ -153,8 +167,10 @@ export type ItemInput = Omit<Item, 'id' | 'created_at' | 'updated_at'>;
 export interface ItemFilter {
   setId?: number;
   collectionId?: number;
+  collectionKind?: CollectionKind;
   type?: ItemType;
   scale?: Scale;
+  country?: string;
   search?: string;
   /** When set, restricts to items with or without any photos. */
   hasPhotos?: boolean;
@@ -162,8 +178,9 @@ export interface ItemFilter {
 
 export interface RoundhouseApi {
   collections: {
-    list(): Promise<Collection[]>;
+    list(kind?: CollectionKind): Promise<Collection[]>;
     get(id: number): Promise<Collection | null>;
+    getByKind(kind: CollectionKind): Promise<Collection | null>;
     create(input: CollectionInput): Promise<Collection>;
     update(id: number, input: Partial<CollectionInput>): Promise<Collection>;
     delete(id: number): Promise<void>;
@@ -217,8 +234,8 @@ export interface RoundhouseApi {
     openListing(url: string): Promise<void>;
   };
   lookups: {
-    list(kind: LookupKind): Promise<LookupRow[]>;
-    create(kind: LookupKind, input: LookupInput): Promise<LookupRow>;
+    list(kind: LookupKind, collectionKind: CollectionKind): Promise<LookupRow[]>;
+    create(kind: LookupKind, collectionKind: CollectionKind, input: LookupInput): Promise<LookupRow>;
     update(kind: LookupKind, id: number, patch: Partial<LookupInput>): Promise<LookupRow>;
     delete(kind: LookupKind, id: number): Promise<void>;
     reorder(kind: LookupKind, orderedIds: number[]): Promise<void>;

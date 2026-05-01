@@ -1,32 +1,68 @@
+import { escapeHtml, fmtCents } from '../lib/dom'
+import type { Item } from '@shared/types'
+
+/**
+ * v0.5.0 redesign: two small collection cards near the bottom so the
+ * background image (the new Trains·Coins·Journeys composition) gets
+ * to dominate the visual frame.
+ */
 export async function renderHome(el: HTMLElement): Promise<void> {
-  const [collections, sets, items] = await Promise.all([
-    window.roundhouse.collections.list(),
-    window.roundhouse.sets.list(),
-    window.roundhouse.items.list()
+  const [trainsCol, coinsCol] = await Promise.all([
+    window.roundhouse.collections.getByKind('trains'),
+    window.roundhouse.collections.getByKind('coins')
   ])
 
+  const [trainItems, coinItems] = await Promise.all([
+    window.roundhouse.items.list({ collectionKind: 'trains' }),
+    window.roundhouse.items.list({ collectionKind: 'coins' })
+  ])
+
+  const trainStats = computeStats(trainItems, 'trains')
+  const coinStats = computeStats(coinItems, 'coins')
+
   el.innerHTML = `
-    <section class="hero">
-      <h2>Welcome to the Roundhouse</h2>
-      <p class="lede">Your model train catalog — locomotives, rolling stock, buildings, figurines, track, and scenery.</p>
-      <div class="stats">
-        <a class="stat" href="#/collections">
-          <span class="stat-num">${collections.length}</span>
-          <span class="stat-label">Collection${collections.length === 1 ? '' : 's'}</span>
-        </a>
-        <a class="stat" href="#/sets">
-          <span class="stat-num">${sets.length}</span>
-          <span class="stat-label">Set${sets.length === 1 ? '' : 's'}</span>
-        </a>
-        <a class="stat" href="#/items">
-          <span class="stat-num">${items.length}</span>
-          <span class="stat-label">Item${items.length === 1 ? '' : 's'}</span>
-        </a>
+    <section class="home-overlay">
+      <div class="home-greeting">
+        <h2>Welcome to the Roundhouse</h2>
+        <p class="muted">Trains · Coins · Journeys</p>
       </div>
-      <div class="actions">
-        <a class="btn primary" href="#/collections">Open Collections</a>
-        <a class="btn" href="#/items">Browse Items</a>
+
+      <div class="collection-cards">
+        <a class="collection-card" href="#/trains">
+          <span class="collection-emoji" aria-hidden="true">🚂</span>
+          <div class="collection-card-body">
+            <h3>${escapeHtml(trainsCol?.name ?? 'Trains')}</h3>
+            <p class="collection-stats">
+              <strong>${trainStats.count.toLocaleString()}</strong> ${trainStats.count === 1 ? 'item' : 'items'}
+              ${trainStats.totalCents > 0 ? ` · <strong>${fmtCents(trainStats.totalCents)}</strong> purchased` : ''}
+            </p>
+          </div>
+        </a>
+
+        <a class="collection-card" href="#/coins">
+          <span class="collection-emoji" aria-hidden="true">🪙</span>
+          <div class="collection-card-body">
+            <h3>${escapeHtml(coinsCol?.name ?? 'Coins')}</h3>
+            <p class="collection-stats">
+              <strong>${coinStats.count.toLocaleString()}</strong> ${coinStats.count === 1 ? 'record' : 'records'}
+              ${coinStats.totalCents > 0 ? ` · <strong>${fmtCents(coinStats.totalCents)}</strong> current value` : ''}
+            </p>
+          </div>
+        </a>
       </div>
     </section>
   `
+}
+
+function computeStats(items: Item[], kind: 'trains' | 'coins'): { count: number; totalCents: number } {
+  if (kind === 'trains') {
+    const totalCents = items.reduce((sum, i) => sum + (i.purchase_price_cents ?? 0), 0)
+    return { count: items.length, totalCents }
+  }
+  // coins: total = sum(quantity × current_value_cents)
+  const totalCents = items.reduce(
+    (sum, i) => sum + ((i.current_value_cents ?? 0) * (i.quantity || 1)),
+    0
+  )
+  return { count: items.length, totalCents }
 }
