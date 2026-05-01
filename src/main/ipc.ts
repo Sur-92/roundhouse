@@ -7,6 +7,7 @@ import { getEbayStatus, searchForItem as ebaySearchForItem } from './ebay'
 import { shell } from 'electron'
 import { buildSearchClauses } from './search'
 import { diagLog, getDiagLogPath, openDiagLogInEditor, resetDiagLog } from './diag'
+import { importTrainsXlsx, importCoinsXlsx, type ImportResult } from './import-xlsx'
 import type {
   Collection, CollectionInput, CollectionKind,
   TrainSet, TrainSetInput,
@@ -160,7 +161,7 @@ export function registerIpc(): void {
     const sql = `
       SELECT i.*,
         (SELECT file_path FROM item_photos
-          WHERE item_id = i.id
+          WHERE item_id = i.id AND media_type = 'photo'
           ORDER BY is_primary DESC, display_order ASC, id ASC
           LIMIT 1) AS primary_photo_path
       FROM items i${where.length ? ' WHERE ' + where.join(' AND ') : ''}
@@ -212,15 +213,23 @@ export function registerIpc(): void {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return [] as ItemPhoto[]
     const result = await dialog.showOpenDialog(win, {
-      title: 'Add photos',
+      title: 'Add photos or videos',
       properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] }]
+      filters: [
+        { name: 'Photos & videos', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'mp4', 'webm', 'mov', 'm4v'] },
+        { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] },
+        { name: 'Videos', extensions: ['mp4', 'webm', 'mov', 'm4v'] }
+      ]
     })
     if (result.canceled || !result.filePaths.length) return [] as ItemPhoto[]
 
+    // Bucket each file by extension so we tag it with the right
+    // media_type. Anything we don't recognize falls back to 'photo'
+    // (the historic default) so unexpected inputs don't get lost.
+    const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.m4v'])
     const created: ItemPhoto[] = []
-    const insertPhoto = db.prepare(
-      'INSERT INTO item_photos (item_id, file_path, display_order) VALUES (?, ?, ?)'
+    const insertMedia = db.prepare(
+      'INSERT INTO item_photos (item_id, file_path, display_order, media_type) VALUES (?, ?, ?, ?)'
     )
     const nextOrder = db.prepare(
       'SELECT COALESCE(MAX(display_order), -1) + 1 AS n FROM item_photos WHERE item_id = ?'
@@ -228,9 +237,11 @@ export function registerIpc(): void {
     const fetch = db.prepare('SELECT * FROM item_photos WHERE id = ?')
 
     for (const src of result.filePaths) {
+      const ext = (src.match(/\.[^./\\]+$/)?.[0] ?? '').toLowerCase()
+      const mediaType = VIDEO_EXTS.has(ext) ? 'video' : 'photo'
       const rel = photos.importPhoto(itemId, src)
       const order = (nextOrder.get(itemId) as { n: number }).n
-      const r = insertPhoto.run(itemId, rel, order)
+      const r = insertMedia.run(itemId, rel, order, mediaType)
       created.push(fetch.get(r.lastInsertRowid) as ItemPhoto)
     }
     return created
@@ -335,6 +346,44 @@ export function registerIpc(): void {
       orderedIds.forEach((id, idx) => upd.run((idx + 1) * 10, id))
     })
     tx()
+  })
+
+  // ─── Import (.xlsx → items) ──────────────────────────
+  // Lets a fresh user bring their existing inventory in via the GUI:
+  // file picker → parse → bulk-insert into the kind's collection. The
+  // collection itself is auto-created at migration time.
+  ipcMain.handle('import:fromXlsx', async (e: IpcMainInvokeEvent, kind: CollectionKind): Promise<ImportResult & { canceled?: boolean }> => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const result = await dialog.showOpenDialog(win!, {
+      title: kind === 'trains' ? 'Import trains from Excel' : 'Import coins from Excel',
+      filters: [
+        { name: 'Excel workbook', extensions: ['xlsx'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    })
+    if (result.canceled || !result.filePaths.length) {
+      return { inserted: 0, skipped: 0, warnings: [], canceled: true }
+    }
+    const filePath = result.filePaths[0]!
+
+    // Resolve target collection (one per kind).
+    const collection = db.prepare('SELECT id FROM collections WHERE kind = ? ORDER BY id LIMIT 1').get(kind) as { id: number } | undefined
+    if (!collection) {
+      throw new Error(`No collection found for kind=${kind}. Restart Roundhouse to let the migration runner create it.`)
+    }
+
+    diagLog(`[import] starting ${kind} xlsx import from ${filePath} → collection_id=${collection.id}`)
+    try {
+      const r = kind === 'coins'
+        ? await importCoinsXlsx(db, filePath, collection.id)
+        : await importTrainsXlsx(db, filePath, collection.id)
+      diagLog(`[import] done: inserted=${r.inserted} skipped=${r.skipped} warnings=${r.warnings.length}`)
+      return r
+    } catch (err) {
+      diagLog(`[import] FAILED: ${String(err)}`)
+      throw err
+    }
   })
 
   // ─── Files (export) ──────────────────────────────────

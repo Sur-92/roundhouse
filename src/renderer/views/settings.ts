@@ -52,6 +52,11 @@ function setActiveKind(k: CollectionKind): void {
 export async function renderSettings(el: HTMLElement): Promise<void> {
   const kind = activeKind()
 
+  // Settings → Coins tab gets the navy theme; Trains tab stays brown.
+  // The router only sets theme-coins for routes whose tab is '/coins',
+  // and Settings has its own '/settings' tab — so we re-toggle here.
+  document.body.classList.toggle('theme-coins', kind === 'coins')
+
   el.innerHTML = `
     <section class="panel">
       <header class="panel-head">
@@ -67,6 +72,8 @@ export async function renderSettings(el: HTMLElement): Promise<void> {
         `).join('')}
       </nav>
 
+      <div id="collection-name-host"></div>
+
       <div class="settings-sections" id="sections"></div>
     </section>
   `
@@ -80,6 +87,10 @@ export async function renderSettings(el: HTMLElement): Promise<void> {
     void renderSettings(el)
   })
 
+  // Collection-name editor (kind-specific) — lets the user rename
+  // "Carey's Trains" / "Coin Collection" to whatever they want.
+  void hydrateCollectionNameSection(kind, el.querySelector<HTMLElement>('#collection-name-host')!)
+
   const host = el.querySelector<HTMLDivElement>('#sections')!
   const sections = SECTIONS.filter((s) => !s.hideForKinds?.includes(kind))
   host.innerHTML = sections.map((s) => sectionShellHtml(s, kind)).join('')
@@ -87,6 +98,66 @@ export async function renderSettings(el: HTMLElement): Promise<void> {
   for (const section of sections) {
     void hydrateSection(section, kind, host)
   }
+}
+
+async function hydrateCollectionNameSection(kind: CollectionKind, host: HTMLElement): Promise<void> {
+  const collection = await window.roundhouse.collections.getByKind(kind)
+  if (!collection) {
+    host.innerHTML = `
+      <section class="settings-section">
+        <p class="muted small">No ${escapeHtml(kind)} collection found yet — restart Roundhouse to let it auto-create one.</p>
+      </section>`
+    return
+  }
+  host.innerHTML = `
+    <section class="settings-section collection-name-section">
+      <header class="settings-section-head">
+        <div>
+          <h3>Collection name</h3>
+          <p class="muted small">Rename the ${escapeHtml(kind)} collection. Shown on the home page card and the print/export headers.</p>
+        </div>
+      </header>
+      <form class="rh-form collection-name-form" data-collection-id="${collection.id}">
+        <label class="field">
+          <span class="field-label">Name</span>
+          <input type="text" name="name" value="${escapeHtml(collection.name)}" maxlength="120" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Description</span>
+          <input type="text" name="description" value="${escapeHtml(collection.description ?? '')}" maxlength="240" placeholder="Optional — shown under the name on the home card" />
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Save</button>
+          <span class="save-status muted small" data-save-status></span>
+        </div>
+      </form>
+    </section>`
+
+  const form = host.querySelector<HTMLFormElement>('.collection-name-form')!
+  const status = host.querySelector<HTMLElement>('[data-save-status]')!
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const data = new FormData(form)
+    const name = String(data.get('name') ?? '').trim()
+    const description = String(data.get('description') ?? '').trim() || null
+    if (!name) {
+      status.textContent = 'Name is required.'
+      status.classList.remove('ok')
+      status.classList.add('err')
+      return
+    }
+    try {
+      await window.roundhouse.collections.update(collection.id, { name, description, kind })
+      status.textContent = '✓ Saved'
+      status.classList.remove('err')
+      status.classList.add('ok')
+      window.setTimeout(() => { status.textContent = '' }, 2000)
+    } catch (err) {
+      status.textContent = `Could not save: ${String(err)}`
+      status.classList.remove('ok')
+      status.classList.add('err')
+    }
+  })
 }
 
 function sectionShellHtml(s: SectionConfig, kind: CollectionKind): string {

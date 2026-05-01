@@ -87,6 +87,8 @@ export interface Item {
   primary_photo_path?: string | null;
 }
 
+export type ItemMediaType = 'photo' | 'video';
+
 export interface ItemPhoto {
   id: number;
   item_id: number;
@@ -94,6 +96,9 @@ export interface ItemPhoto {
   caption: string | null;
   display_order: number;
   is_primary: 0 | 1;
+  /** 'photo' (image) or 'video'. Stored on the same table — historic
+   *  name kept for back-compat. Defaults to 'photo' on legacy rows. */
+  media_type: ItemMediaType;
   created_at: string;
 }
 
@@ -163,6 +168,15 @@ export interface EbaySearchResult {
 export type CollectionInput = Omit<Collection, 'id' | 'created_at' | 'updated_at'>;
 export type TrainSetInput = Omit<TrainSet, 'id' | 'created_at' | 'updated_at'>;
 export type ItemInput = Omit<Item, 'id' | 'created_at' | 'updated_at'>;
+
+/** Result of an xlsx → items import. */
+export interface ImportResult {
+  inserted: number;
+  skipped: number;
+  warnings: string[];
+  /** True when the user dismissed the file picker. */
+  canceled?: boolean;
+}
 
 export interface ItemFilter {
   setId?: number;
@@ -242,6 +256,9 @@ export interface RoundhouseApi {
   };
   files: {
     saveCsv(defaultName: string, content: string): Promise<string | null>;
+  };
+  import: {
+    fromXlsx(kind: CollectionKind): Promise<ImportResult>;
   };
   print: {
     current(): Promise<void>;

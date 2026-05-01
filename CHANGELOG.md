@@ -1,5 +1,46 @@
 # Roundhouse Release Notes
 
+## v0.5.1 — 2026-05-01
+
+A polish pass on top of v0.5.0 — coin-shaped UI everywhere it should be, video support, real grouping for coins, and import without Python.
+
+### Coins side gets its own theme
+- **Navy blue palette.** Every coin-side screen — `/coins`, `/books`, the home page Coins card, the Coins tab in Settings, set/item detail when the parent is a coin collection — paints in steel-blue and dark navy to match the ROUNDHOUSE plaque and "COIN COLLECTION" book in the background image. Trains side stays brown. The body class flips automatically.
+- **Coin Condition grading.** The "?" help dot beside Condition now opens the **Sheldon scale** (P-1 through MS-70 + Proof) on coins, instead of the TCA train-grading list. Existing imported coin condition values were normalized to the value keys (Mint→mint_state, Proof→proof, etc.).
+
+### Books — real groupings for coins (resolves #6 conceptually)
+- **`/books` page** lists coin "books" (Whitman folders, Dansco albums, custom groupings — really just sets in the coin collection). Create / rename / delete books from there.
+- **Coin item form** has a new **Book** dropdown so you can assign each coin to a book at edit time.
+- **Quick-add coins to a book**: open a book → "Add existing coins" → searchable, multi-select picker → submit, all selected coins are assigned at once.
+- **Remove without delete**: each row inside a book/set has a ↩︎ button that pulls the coin out of the book without deleting the coin from the collection.
+- **Coin sub-nav** on `/coins` → **All / Mints / Proofs / Books**. All/Mints/Proofs are in-page filters; Books navigates to `/books`.
+
+### Photos & videos (resolves #9)
+- **Videos alongside photos.** The Add dialog now accepts `mp4`, `webm`, `mov`, `m4v` in addition to images. Videos play in the same lightbox with controls and autoplay, and show as a tile with a ▶ overlay + VIDEO badge in the gallery. Trains and coins both supported.
+- Videos can't be set as the primary thumbnail (the home card / list thumb stays an image).
+
+### Sticky table headers (resolves #8)
+- The Trains / Coins / Books tables now scroll **inside** a fixed-height wrap, with column headers locked at the top. The wrap adapts to viewport height. Print output still expands every row.
+
+### Renaming + Settings polish
+- **Rename your collections.** Settings → Trains tab and Settings → Coins tab each have a Name + Description editor at the top. Saving updates the home card, print headers, and everywhere else the name appears.
+- **Trains sub-nav** on `/trains` and `/sets` — pill links **Items / Sets** so you can hop between the two without losing context.
+- The old in-page **Search tips** popover was replaced by the cleaner sub-nav layout.
+
+### In-app xlsx import (no Python needed)
+- **Import Excel** button on the Trains and Coins page headers. Pick an .xlsx, columns auto-detected by header name; rows insert into the kind's collection in a single transaction. Handles the same column shape the Python scripts did (Scale/Mfg/Number/Item/... for trains, Type/Country/Currency/Denomination/... for coins).
+
+### Item detail
+- **Kind-aware fields.** Coin items show *Country / Face value / Denomination / Mint mark / Year / Quantity*; trains show *Scale / Mfr / Model # / Road name / Era / Year*. No more "—" placeholders for irrelevant fields.
+- **Correct top-nav highlight + breadcrumb.** Drilling into a coin item now highlights **Coins** in the top nav and breadcrumbs as `Coins › <name>` (or `Coins › Books › <book> › <name>`). Same parity for trains.
+
+### Bug fixes
+- Edit dialogs and Search-tips popovers no longer bleed the brown surface color when on a coin screen.
+- The list-row primary thumbnail SQL filters to `media_type='photo'` so a video can never be served as an `<img>`.
+
+### Schema
+- `item_photos.media_type` column added (photo | video). Migration backfills existing rows to 'photo'; fresh installs get the CHECK constraint.
+
 ## v0.5.0 — 2026-04-30
 
 ### Coins are first-class now

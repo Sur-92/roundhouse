@@ -5,6 +5,7 @@ import { renderSets } from './views/sets'
 import { renderSetDetail } from './views/set-detail'
 import { renderItems, renderItemsForKind } from './views/items'
 import { renderItemDetail } from './views/item-detail'
+import { renderBooks } from './views/books'
 import { renderRequests } from './views/requests'
 import { renderSettings } from './views/settings'
 
@@ -37,6 +38,7 @@ const routes: CompiledRoute[] = [
   compile('/items/:id', renderItemDetail, '/trains'),
   compile('/trains', (el) => renderItemsForKind(el, 'trains'), '/trains'),
   compile('/coins', (el) => renderItemsForKind(el, 'coins'), '/coins'),
+  compile('/books', renderBooks, '/coins'),
   compile('/requests', renderRequests, '/requests'),
   compile('/settings', renderSettings, '/settings')
 ]
@@ -60,15 +62,22 @@ export function initRouter(): void {
     }
 
     view.innerHTML = ''
+
+    // Set defaults BEFORE the handler runs so drill-down views (set-
+    // detail, item-detail, collection-detail, settings) can override
+    // them once they know the underlying collection's kind.
+    //   - body.theme-coins toggles the navy palette
+    //   - .tabs a.active highlights the top-nav tab
+    document.body.classList.toggle('theme-coins', matched?.tab === '/coins')
+    document.querySelectorAll<HTMLAnchorElement>('.tabs a').forEach((a) => {
+      a.classList.toggle('active', a.dataset['route'] === (matched?.tab ?? '/'))
+    })
+
     if (matched) {
       await matched.handler(view, matched.params)
     } else {
       view.innerHTML = `<section class="panel"><h2>Not found</h2><p class="muted">No route for <code>${path}</code>.</p></section>`
     }
-
-    document.querySelectorAll<HTMLAnchorElement>('.tabs a').forEach((a) => {
-      a.classList.toggle('active', a.dataset['route'] === (matched?.tab ?? '/'))
-    })
   }
 
   window.addEventListener('hashchange', () => void render())

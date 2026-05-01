@@ -60,6 +60,23 @@ function tableColumns(db: Database.Database, name: string): string[] {
 
 const PRE_SCHEMA: Migration[] = [
   {
+    id: 'pre/2026-05-01_add_media_type_to_item_photos',
+    name: 'Add media_type column to item_photos so videos can live alongside photos',
+    up: (db) => {
+      if (!tableExists(db, 'item_photos')) return
+      const cols = tableColumns(db, 'item_photos')
+      if (cols.includes('media_type')) return
+      // SQLite ALTER TABLE ADD COLUMN can't include a CHECK constraint
+      // or a non-constant default reliably. Add as plain TEXT and
+      // backfill, then enforce via app code (the schema.sql for fresh
+      // installs has the CHECK).
+      db.exec(`
+        ALTER TABLE item_photos ADD COLUMN media_type TEXT NOT NULL DEFAULT 'photo';
+        UPDATE item_photos SET media_type = 'photo' WHERE media_type IS NULL OR media_type = '';
+      `)
+    }
+  },
+  {
     id: 'pre/2026-04-29_add_is_primary_to_item_photos',
     name: 'Add is_primary flag to item_photos and seed it from display_order',
     up: (db) => {

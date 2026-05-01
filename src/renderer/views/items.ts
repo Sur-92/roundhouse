@@ -49,11 +49,42 @@ export async function renderItemsForKind(el: HTMLElement, kind: CollectionKind):
         </select>
       </label>`
 
+  // Sub-nav, kind-specific.
+  //   Trains: Items / Sets — Sets is the grouped-by-set view.
+  //   Coins:  All / Mints / Proofs / Books — All/Mints/Proofs are
+  //           in-page filters over the coin list; Books navigates to
+  //           the /books page (coin sets, re-skinned as Books).
+  type CoinView = '' | 'mints' | 'proofs'
+  let coinView: CoinView = (() => {
+    const v = sessionStorage.getItem('coins.view') ?? ''
+    return v === 'mints' || v === 'proofs' ? v : ''
+  })()
+
+  const coinSubNavHtml = (): string => `
+    <nav class="subnav" aria-label="Coins views">
+      <a href="#" class="subnav-link ${coinView === '' ? 'active' : ''}" data-coinview="">All</a>
+      <a href="#" class="subnav-link ${coinView === 'mints' ? 'active' : ''}" data-coinview="mints">Mints</a>
+      <a href="#" class="subnav-link ${coinView === 'proofs' ? 'active' : ''}" data-coinview="proofs">Proofs</a>
+      <a href="#/books" class="subnav-link" data-coinview="books">Books</a>
+    </nav>`
+
+  const subNav = kind === 'trains'
+    ? `
+      <nav class="subnav" aria-label="Trains views">
+        <a href="#/items" class="subnav-link active" data-subnav="items">Items</a>
+        <a href="#/sets" class="subnav-link" data-subnav="sets">Sets</a>
+      </nav>`
+    : coinSubNavHtml()
+
   el.innerHTML = `
     <section class="panel">
       <header class="panel-head">
-        <h2>${escapeHtml(title)}</h2>
+        <div class="title-row">
+          <h2>${escapeHtml(title)}</h2>
+          ${subNav}
+        </div>
         <div class="head-actions">
+          <button class="btn" data-action="import-xlsx" title="Import items from an Excel spreadsheet">📥 Import Excel</button>
           <button class="btn" data-action="export-csv" title="Export current list to CSV">📊 Export CSV</button>
           <button class="btn" data-action="print" title="Print current list">🖨 Print</button>
           <button class="btn primary" data-action="new">${escapeHtml(newLabel)}</button>
@@ -61,10 +92,7 @@ export async function renderItemsForKind(el: HTMLElement, kind: CollectionKind):
       </header>
       <div class="filters no-print">
         <label class="field-inline filter-search">
-          <span class="field-label">
-            Search
-            <button type="button" class="help-dot" popovertarget="search-help" aria-label="Search syntax help">?</button>
-          </span>
+          <span class="field-label">Search</span>
           <input id="f-search" type="search" placeholder="Search this collection…" />
         </label>
         <label class="field-inline">
@@ -137,11 +165,19 @@ export async function renderItemsForKind(el: HTMLElement, kind: CollectionKind):
     return parts.length ? `Filtered by: ${parts.join(', ')}` : `All ${title.toLowerCase()}`
   }
 
+  const applyCoinView = (rows: Item[]): Item[] => {
+    if (kind !== 'coins' || !coinView) return rows
+    if (coinView === 'mints') return rows.filter((i) => i.mint_mark != null && i.mint_mark.trim() !== '')
+    if (coinView === 'proofs') return rows.filter((i) => (i.condition || '').toLowerCase() === 'proof')
+    return rows
+  }
+
   const refresh = async (): Promise<void> => {
     const filter = buildFilter()
-    const items = await window.roundhouse.items.list(filter)
+    const fetched = await window.roundhouse.items.list(filter)
+    const items = applyCoinView(fetched)
     lastItems = items
-    lastFilterDescription = describeFilter(filter)
+    lastFilterDescription = describeFilter(filter) + (coinView ? ` · view: ${coinView}` : '')
 
     const totalCents = items.reduce(
       (sum, i) => sum + (i.purchase_price_cents ?? 0),
@@ -180,6 +216,29 @@ export async function renderItemsForKind(el: HTMLElement, kind: CollectionKind):
   fScale?.addEventListener('change', () => void refresh())
   fCountry?.addEventListener('change', () => void refresh())
 
+  // Coins sub-nav (All / Mints / Proofs / Books). All/Mints/Proofs are
+  // in-page filters; Books navigates away to /books and is left alone
+  // here so the default link nav fires.
+  if (kind === 'coins') {
+    el.querySelectorAll<HTMLAnchorElement>('[data-coinview]').forEach((link) => {
+      const view = link.dataset['coinview'] || ''
+      if (view === 'books') return // real navigation, don't intercept
+      link.addEventListener('click', (e) => {
+        e.preventDefault()
+        const next = view as CoinView
+        if (next === coinView) return
+        coinView = next
+        sessionStorage.setItem('coins.view', coinView)
+        // Re-render active state without a full re-route.
+        el.querySelectorAll<HTMLElement>('[data-coinview]').forEach((a) => {
+          if (a.dataset['coinview'] === 'books') return
+          a.classList.toggle('active', a.dataset['coinview'] === coinView)
+        })
+        void refresh()
+      })
+    })
+  }
+
   el.querySelector<HTMLButtonElement>('[data-action="new"]')!.addEventListener('click', async () => {
     if (await openItemDialog(kind, undefined, { collectionId })) await refresh()
   })
@@ -193,6 +252,45 @@ export async function renderItemsForKind(el: HTMLElement, kind: CollectionKind):
     const stamp = new Date().toISOString().slice(0, 10)
     const path = await window.roundhouse.files.saveCsv(`roundhouse-${kind}-${stamp}.csv`, csv)
     if (path) console.log(`Exported ${kind} CSV →`, path)
+  })
+
+  el.querySelector<HTMLButtonElement>('[data-action="import-xlsx"]')!.addEventListener('click', async () => {
+    const expectedHeaders = kind === 'coins'
+      ? 'Type · Country · Currency · Denomination · Year · Mint · Condition · Quantity · Value · Comment'
+      : 'Scale · Mfg · Number · Item · Source · Purchased · Price · Color · Notes'
+    const ok = await openDialog({
+      title: `Import ${kind} from Excel`,
+      body: `
+        <p class="dialog-message">Pick an .xlsx file. The first worksheet should have these columns (any order, header names are auto-detected):</p>
+        <p class="dialog-message"><strong>${escapeHtml(expectedHeaders)}</strong></p>
+        <p class="dialog-message muted">Rows with no item name (or for coins, no Type/Country) are skipped. Existing items in this collection are <em>not</em> replaced — new rows are appended.</p>
+      `,
+      submitLabel: 'Pick file…',
+      cancelLabel: 'Cancel'
+    })
+    if (!ok) return
+
+    try {
+      const result = await window.roundhouse.import.fromXlsx(kind)
+      if (result.canceled) return
+      const lines: string[] = [`Inserted ${result.inserted.toLocaleString()} ${kind === 'coins' ? 'coin/bill records' : 'items'}.`]
+      if (result.skipped > 0) lines.push(`Skipped ${result.skipped.toLocaleString()} blank rows.`)
+      if (result.warnings.length) lines.push('', ...result.warnings)
+      await openDialog({
+        title: 'Import complete',
+        body: `<p class="dialog-message">${lines.map((l) => escapeHtml(l)).join('<br>')}</p>`,
+        submitLabel: 'OK',
+        cancelLabel: 'Close'
+      })
+      await refresh()
+    } catch (err) {
+      await openDialog({
+        title: 'Import failed',
+        body: `<p class="dialog-message">${escapeHtml(String(err))}</p>`,
+        submitLabel: 'OK',
+        cancelLabel: 'Close'
+      })
+    }
   })
 
   wireRowTable(table, {
@@ -314,10 +412,26 @@ export async function openItemDialog(
     ${fieldHtml({ label: 'Notes', name: 'notes', type: 'textarea', value: existing?.notes, span: 2 })}`
 
   if (kind === 'coins') {
+    // Coin "books" — sets in the coin collection. Optional: items can
+    // belong to no book.
+    const coinCollection = await window.roundhouse.collections.getByKind('coins')
+    const coinBooks = coinCollection ? await window.roundhouse.sets.list(coinCollection.id) : []
+    const currentSetId = existing?.set_id ?? defaults?.setId ?? ''
+    const bookOptionsHtml = `
+      <option value=""${currentSetId === '' || currentSetId == null ? ' selected' : ''}>— No book —</option>
+      ${coinBooks
+        .map((s) => `<option value="${s.id}"${Number(currentSetId) === s.id ? ' selected' : ''}>${escapeHtml(s.name)}</option>`)
+        .join('')}
+    `
+
     body.innerHTML = `
       <div class="rh-form-grid">
         ${fieldHtml({ label: 'Name', name: 'name', value: existing?.name, required: true, span: 2, placeholder: 'e.g. 1898 Morgan Silver Dollar' })}
         ${fieldHtml({ label: 'Type', name: 'type', type: 'select', value: existing?.type ?? typeOptions[0]?.value ?? 'coin', options: typeOptions, required: true })}
+        <label class="field" for="f-set_id">
+          <span class="field-label">Book</span>
+          <select id="f-set_id" name="set_id">${bookOptionsHtml}</select>
+        </label>
         ${fieldHtml({ label: 'Country', name: 'country', value: existing?.country, placeholder: 'e.g. USA, Canada, UK' })}
         ${fieldHtml({ label: 'Face value', name: 'face_value', type: 'number', value: existing?.face_value ?? '', placeholder: 'e.g. 1, 25, 1000' })}
         ${fieldHtml({ label: 'Denomination', name: 'denomination', value: existing?.denomination, placeholder: 'e.g. Dollar, Pesos, Yuan' })}
@@ -384,7 +498,7 @@ export async function openItemDialog(
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action="condition-help"]')
     if (target) {
       e.preventDefault()
-      openConditionHelp()
+      openConditionHelp(kind)
     }
   })
 

@@ -22,16 +22,47 @@ export async function renderItemDetail(el: HTMLElement, params: Record<string, s
     if (parentSet) parentCollection = await window.roundhouse.collections.get(parentSet.collection_id)
   }
 
+  // Resolve the item's collection kind so the help-dot popup and the
+  // edit dialog render with the right grading scale and field set.
+  let itemKind: 'trains' | 'coins' = 'trains'
+  if (parentCollection) {
+    itemKind = parentCollection.kind
+  } else if (item.collection_id) {
+    const coll = await window.roundhouse.collections.get(item.collection_id)
+    if (coll) itemKind = coll.kind
+  }
+
+  // Coins theme on coin item detail pages (route's tab is '/trains'
+  // for /items/:id, so the router defaults to the brown palette).
+  document.body.classList.toggle('theme-coins', itemKind === 'coins')
+
+  // Top-nav tab activation: the route is registered with tab='/trains'
+  // because /items pre-dates the kind split. Re-pick the correct top
+  // nav tab once we know whether this item is a coin or a train.
+  const correctTab = itemKind === 'coins' ? '/coins' : '/trains'
+  document.querySelectorAll<HTMLAnchorElement>('.tabs a').forEach((a) => {
+    a.classList.toggle('active', a.dataset['route'] === correctTab)
+  })
+
   let photos = await window.roundhouse.photos.listForItem(id)
 
-  el.innerHTML = `
-    <nav class="breadcrumb">
-      <a href="#/items">Items</a>
+  // Kind-aware breadcrumb. Coins go: Coins › Books › <book> › <name>
+  // (or Coins › <name> when no book). Trains go: Trains › Sets ›
+  // <set> › <name> (or Trains › <name> when no set).
+  const breadcrumbHtml = itemKind === 'coins'
+    ? `
+      <a href="#/coins">Coins</a>
       <span class="sep">›</span>
-      ${parentCollection ? `<a href="#/collections/${parentCollection.id}">${escapeHtml(parentCollection.name)}</a><span class="sep">›</span>` : ''}
-      ${parentSet ? `<a href="#/sets/${parentSet.id}">${escapeHtml(parentSet.name)}</a><span class="sep">›</span>` : ''}
-      <span>${escapeHtml(item.name)}</span>
-    </nav>
+      ${parentSet ? `<a href="#/books">Books</a><span class="sep">›</span><a href="#/sets/${parentSet.id}">${escapeHtml(parentSet.name)}</a><span class="sep">›</span>` : ''}
+      <span>${escapeHtml(item.name)}</span>`
+    : `
+      <a href="#/items">Trains</a>
+      <span class="sep">›</span>
+      ${parentSet ? `<a href="#/sets">Sets</a><span class="sep">›</span><a href="#/sets/${parentSet.id}">${escapeHtml(parentSet.name)}</a><span class="sep">›</span>` : ''}
+      <span>${escapeHtml(item.name)}</span>`
+
+  el.innerHTML = `
+    <nav class="breadcrumb">${breadcrumbHtml}</nav>
 
     <section class="panel item-detail">
       <header class="panel-head">
@@ -57,14 +88,23 @@ export async function renderItemDetail(el: HTMLElement, params: Record<string, s
 
         <dl class="item-fields">
           ${field('Type', typeLabel(item.type))}
-          ${field('Scale', item.scale)}
-          ${field('Manufacturer', item.manufacturer)}
-          ${field('Model number', item.model_number)}
-          ${field('Road name', item.road_name)}
-          ${field('Era', item.era)}
-          ${field('Year', item.year)}
+          ${itemKind === 'coins' ? `
+            ${field('Country', item.country)}
+            ${field('Face value', item.face_value)}
+            ${field('Denomination', item.denomination)}
+            ${field('Mint mark', item.mint_mark)}
+            ${field('Year', item.year)}
+            ${field('Quantity', item.quantity)}
+          ` : `
+            ${field('Scale', item.scale)}
+            ${field('Manufacturer', item.manufacturer)}
+            ${field('Model number', item.model_number)}
+            ${field('Road name', item.road_name)}
+            ${field('Era', item.era)}
+            ${field('Year', item.year)}
+          `}
           ${conditionFieldRow(item.condition)}
-          ${field('Original box', item.original_box == null ? null : item.original_box ? 'Yes' : 'No')}
+          ${itemKind === 'trains' ? field('Original box', item.original_box == null ? null : item.original_box ? 'Yes' : 'No') : ''}
           ${field('Purchase date', fmtDate(item.purchase_date))}
           ${field('Purchase price', fmtCents(item.purchase_price_cents))}
           ${field('Current value', fmtCents(item.current_value_cents))}
@@ -84,18 +124,12 @@ export async function renderItemDetail(el: HTMLElement, params: Record<string, s
   if (ebayMount) void renderEbayPanel(ebayMount, id)
 
   el.querySelector<HTMLButtonElement>('[data-action="edit"]')!.addEventListener('click', async () => {
-    // Determine the item's collection kind so the dialog renders the
-    // correct field set (train fields vs coin fields).
-    let itemKind: 'trains' | 'coins' = 'trains'
-    if (item.collection_id) {
-      const coll = await window.roundhouse.collections.get(item.collection_id)
-      if (coll) itemKind = coll.kind
-    }
     if (await openItemDialog(itemKind, item)) await renderItemDetail(el, params)
   })
 
-  // Condition help-dot in the read-only fields list
-  el.querySelector<HTMLButtonElement>('[data-action="condition-help"]')?.addEventListener('click', () => openConditionHelp())
+  // Condition help-dot in the read-only fields list — kind-aware so coins
+  // get the Sheldon scale and trains get the TCA scale.
+  el.querySelector<HTMLButtonElement>('[data-action="condition-help"]')?.addEventListener('click', () => openConditionHelp(itemKind))
 
   el.querySelector<HTMLButtonElement>('[data-action="delete"]')!.addEventListener('click', async () => {
     const ok = await confirmDialog(
@@ -204,8 +238,8 @@ function renderPhotosBlock(photos: ItemPhoto[]): string {
   if (!photos.length) {
     return `
       <div class="photos-empty">
-        <p class="muted">No photos yet.</p>
-        <button class="btn primary" data-action="add-photo">Add photos</button>
+        <p class="muted">No photos or videos yet.</p>
+        <button class="btn primary" data-action="add-photo">Add photos / videos</button>
       </div>`
   }
 
@@ -213,16 +247,30 @@ function renderPhotosBlock(photos: ItemPhoto[]): string {
     .map((p) => {
       const isPrimary = p.is_primary === 1
       const captionVal = p.caption ?? ''
+      const url = window.roundhouse.photos.url(p.file_path)
+      const isVideo = p.media_type === 'video'
+      // Videos: <video preload="metadata"> uses the first frame as the
+      // tile thumbnail; an overlay ▶ icon makes the type obvious. The
+      // tile itself still opens the lightbox (which plays the video).
+      const tileMedia = isVideo
+        ? `<video class="media-tile-video" src="${url}" preload="metadata" muted playsinline></video>
+           <span class="media-tile-play-overlay" aria-hidden="true">▶</span>
+           <span class="media-tile-kind-badge" title="Video">VIDEO</span>`
+        : `<img src="${url}" alt="${escapeHtml(captionVal)}" loading="lazy" data-action="open-lightbox" data-id="${p.id}" />`
+      const primaryDisabled = isVideo || isPrimary
+      const primaryTitle = isVideo
+        ? 'Videos can’t be the primary thumbnail'
+        : isPrimary ? 'Primary photo' : 'Set as primary'
       return `
-        <figure class="photo-tile${isPrimary ? ' primary' : ''}" data-id="${p.id}" draggable="true" title="Drag to reorder">
+        <figure class="photo-tile${isPrimary ? ' primary' : ''}${isVideo ? ' is-video' : ''}" data-id="${p.id}" draggable="true" title="Drag to reorder">
           <div class="photo-tile-img-wrap" data-action="open-lightbox" data-id="${p.id}" tabindex="0">
-            <img src="${window.roundhouse.photos.url(p.file_path)}" alt="${escapeHtml(captionVal)}" loading="lazy" data-action="open-lightbox" data-id="${p.id}" />
+            ${tileMedia}
             ${isPrimary ? '<span class="primary-badge" title="Primary photo">★</span>' : ''}
           </div>
           <input class="photo-caption-input" type="text" placeholder="Add a caption…" value="${escapeHtml(captionVal)}" data-id="${p.id}" maxlength="200" />
           <div class="photo-tile-actions">
-            <button class="icon-btn ${isPrimary ? 'is-primary' : ''}" data-action="set-primary" data-id="${p.id}" title="${isPrimary ? 'Primary photo' : 'Set as primary'}" ${isPrimary ? 'disabled' : ''}>★</button>
-            <button class="icon-btn danger" data-action="delete-photo" data-id="${p.id}" title="Delete photo">🗑</button>
+            <button class="icon-btn ${isPrimary ? 'is-primary' : ''}" data-action="set-primary" data-id="${p.id}" title="${escapeHtml(primaryTitle)}" ${primaryDisabled ? 'disabled' : ''}>★</button>
+            <button class="icon-btn danger" data-action="delete-photo" data-id="${p.id}" title="Delete">🗑</button>
           </div>
         </figure>`
     })
@@ -231,7 +279,7 @@ function renderPhotosBlock(photos: ItemPhoto[]): string {
   return `
     <div class="photo-gallery">${tiles}</div>
     <div class="photo-actions">
-      <span class="muted small">Drag tiles to reorder · click an image to enlarge · ★ marks the primary photo (used as the thumbnail)</span>
+      <span class="muted small">Drag tiles to reorder · click to enlarge · ★ marks the primary photo (used as the thumbnail). Videos can’t be primary.</span>
       <button class="btn" data-action="add-photo">Add more</button>
     </div>`
 }

@@ -28,7 +28,7 @@ export async function renderHome(el: HTMLElement): Promise<void> {
       </div>
 
       <div class="collection-cards">
-        <a class="collection-card" href="#/trains">
+        <a class="collection-card collection-card--trains" href="#/trains">
           <span class="collection-emoji" aria-hidden="true">🚂</span>
           <div class="collection-card-body">
             <h3>${escapeHtml(trainsCol?.name ?? 'Trains')}</h3>
@@ -39,7 +39,7 @@ export async function renderHome(el: HTMLElement): Promise<void> {
           </div>
         </a>
 
-        <a class="collection-card" href="#/coins">
+        <a class="collection-card collection-card--coins" href="#/coins">
           <span class="collection-emoji" aria-hidden="true">🪙</span>
           <div class="collection-card-body">
             <h3>${escapeHtml(coinsCol?.name ?? 'Coins')}</h3>

@@ -12,6 +12,9 @@ export async function renderCollectionDetail(el: HTMLElement, params: Record<str
     return
   }
 
+  // Apply the navy theme when viewing a coin collection.
+  document.body.classList.toggle('theme-coins', collection.kind === 'coins')
+
   el.innerHTML = `
     <nav class="breadcrumb">
       <a href="#/collections">Collections</a>
@@ -79,22 +82,40 @@ export async function renderCollectionDetail(el: HTMLElement, params: Record<str
   await refresh()
 }
 
-export async function openSetDialog(existing: TrainSet | undefined, collectionId: number): Promise<boolean> {
+export async function openSetDialog(
+  existing: TrainSet | undefined,
+  collectionId: number,
+  kind: 'trains' | 'coins' = 'trains'
+): Promise<boolean> {
   const body = document.createElement('form')
   body.className = 'rh-form'
-  body.innerHTML = `
-    <div class="rh-form-grid">
-      ${fieldHtml({ label: 'Name', name: 'name', value: existing?.name, required: true, span: 2 })}
-      ${fieldHtml({ label: 'Manufacturer', name: 'manufacturer', value: existing?.manufacturer })}
-      ${fieldHtml({ label: 'Scale', name: 'scale', type: 'select', value: existing?.scale, options: SCALE_OPTIONS })}
-      ${fieldHtml({ label: 'Era', name: 'era', value: existing?.era, placeholder: 'e.g. III, 1945–1970' })}
-      ${fieldHtml({ label: 'Description', name: 'description', type: 'textarea', value: existing?.description, span: 2 })}
-      ${fieldHtml({ label: 'Notes', name: 'notes', type: 'textarea', value: existing?.notes, span: 2 })}
-    </div>
-  `
+
+  if (kind === 'coins') {
+    // Coin "Books" — just a name + description grouping, no scale/mfr.
+    body.innerHTML = `
+      <div class="rh-form-grid">
+        ${fieldHtml({ label: 'Name', name: 'name', value: existing?.name, required: true, span: 2, placeholder: 'e.g. Lincoln Cents (Whitman)' })}
+        ${fieldHtml({ label: 'Description', name: 'description', type: 'textarea', value: existing?.description, span: 2, placeholder: 'What is this book? (optional)' })}
+        ${fieldHtml({ label: 'Notes', name: 'notes', type: 'textarea', value: existing?.notes, span: 2 })}
+      </div>
+    `
+  } else {
+    body.innerHTML = `
+      <div class="rh-form-grid">
+        ${fieldHtml({ label: 'Name', name: 'name', value: existing?.name, required: true, span: 2 })}
+        ${fieldHtml({ label: 'Manufacturer', name: 'manufacturer', value: existing?.manufacturer })}
+        ${fieldHtml({ label: 'Scale', name: 'scale', type: 'select', value: existing?.scale, options: SCALE_OPTIONS })}
+        ${fieldHtml({ label: 'Era', name: 'era', value: existing?.era, placeholder: 'e.g. III, 1945–1970' })}
+        ${fieldHtml({ label: 'Description', name: 'description', type: 'textarea', value: existing?.description, span: 2 })}
+        ${fieldHtml({ label: 'Notes', name: 'notes', type: 'textarea', value: existing?.notes, span: 2 })}
+      </div>
+    `
+  }
+
+  const noun = kind === 'coins' ? 'book' : 'set'
 
   return openDialog({
-    title: existing ? 'Edit set' : 'New set',
+    title: existing ? `Edit ${noun}` : `New ${noun}`,
     body,
     submitLabel: existing ? 'Save changes' : 'Create',
     onSubmit: async () => {
@@ -104,9 +125,9 @@ export async function openSetDialog(existing: TrainSet | undefined, collectionId
         collection_id: collectionId,
         name: (data.name as string | null) ?? '',
         description: (data.description ?? null) as string | null,
-        scale: (data.scale ?? null) as TrainSetInput['scale'],
-        manufacturer: (data.manufacturer ?? null) as string | null,
-        era: (data.era ?? null) as string | null,
+        scale: kind === 'coins' ? null : ((data.scale ?? null) as TrainSetInput['scale']),
+        manufacturer: kind === 'coins' ? null : ((data.manufacturer ?? null) as string | null),
+        era: kind === 'coins' ? null : ((data.era ?? null) as string | null),
         notes: (data.notes ?? null) as string | null
       }
       if (existing) await window.roundhouse.sets.update(existing.id, payload)

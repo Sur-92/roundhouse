@@ -65,6 +65,9 @@ CREATE INDEX IF NOT EXISTS idx_items_scale       ON items(scale);
 CREATE INDEX IF NOT EXISTS idx_items_country     ON items(country);
 CREATE INDEX IF NOT EXISTS idx_items_source      ON items(source);
 
+-- The "photos" table actually holds any media attached to an item:
+-- photos and videos. media_type discriminates. Kept the table name
+-- for migration / API stability — internally it's "media."
 CREATE TABLE IF NOT EXISTS item_photos (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   item_id       INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
@@ -72,6 +75,7 @@ CREATE TABLE IF NOT EXISTS item_photos (
   caption       TEXT,
   display_order INTEGER NOT NULL DEFAULT 0,
   is_primary    INTEGER NOT NULL DEFAULT 0,
+  media_type    TEXT    NOT NULL DEFAULT 'photo' CHECK (media_type IN ('photo','video')),
   created_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_photos_item ON item_photos(item_id);

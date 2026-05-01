@@ -1,13 +1,12 @@
-import { escapeHtml } from './dom'
 import type { ItemPhoto } from '@shared/types'
 
 /**
- * Fullscreen image viewer for an item's photo gallery.
+ * Fullscreen viewer for an item's photo + video gallery.
  *
- * Opens a modal <dialog> with the selected photo big, plus prev/next
+ * Opens a modal <dialog> with the selected media big, plus prev/next
  * navigation (← →), keyboard arrows, ESC to close, and the caption
- * shown beneath. The dialog autoclose is via popover-like behavior —
- * click the backdrop or press ESC to dismiss.
+ * shown beneath. Videos render as a <video controls> element with
+ * autoplay; switching media via prev/next pauses any active video.
  */
 export function openLightbox(photos: ItemPhoto[], startIndex: number): void {
   if (!photos.length) return
@@ -20,13 +19,13 @@ export function openLightbox(photos: ItemPhoto[], startIndex: number): void {
     <button type="button" class="lightbox-nav lightbox-prev" data-action="prev" aria-label="Previous">‹</button>
     <button type="button" class="lightbox-nav lightbox-next" data-action="next" aria-label="Next">›</button>
     <figure class="lightbox-figure">
-      <img class="lightbox-image" alt="" />
+      <div class="lightbox-media-host"></div>
       <figcaption class="lightbox-caption"></figcaption>
     </figure>
     <div class="lightbox-counter"></div>
   `
 
-  const img = dlg.querySelector<HTMLImageElement>('.lightbox-image')!
+  const host = dlg.querySelector<HTMLElement>('.lightbox-media-host')!
   const caption = dlg.querySelector<HTMLElement>('.lightbox-caption')!
   const counter = dlg.querySelector<HTMLElement>('.lightbox-counter')!
   const prevBtn = dlg.querySelector<HTMLButtonElement>('[data-action="prev"]')!
@@ -34,8 +33,26 @@ export function openLightbox(photos: ItemPhoto[], startIndex: number): void {
 
   const update = (): void => {
     const p = photos[index]!
-    img.src = window.roundhouse.photos.url(p.file_path)
-    img.alt = p.caption ?? ''
+    const url = window.roundhouse.photos.url(p.file_path)
+    // Pause any currently-playing video before swapping nodes — the
+    // browser otherwise keeps audio playing after the element detaches.
+    host.querySelectorAll<HTMLVideoElement>('video').forEach((v) => { v.pause() })
+    host.innerHTML = ''
+    if (p.media_type === 'video') {
+      const v = document.createElement('video')
+      v.className = 'lightbox-video'
+      v.src = url
+      v.controls = true
+      v.autoplay = true
+      v.playsInline = true
+      host.appendChild(v)
+    } else {
+      const img = document.createElement('img')
+      img.className = 'lightbox-image'
+      img.src = url
+      img.alt = p.caption ?? ''
+      host.appendChild(img)
+    }
     caption.textContent = p.caption ?? ''
     caption.style.visibility = p.caption ? 'visible' : 'hidden'
     counter.textContent = `${index + 1} / ${photos.length}`
@@ -65,7 +82,11 @@ export function openLightbox(photos: ItemPhoto[], startIndex: number): void {
     else if (e.key === 'ArrowRight') { e.preventDefault(); go(1) }
   })
 
-  dlg.addEventListener('close', () => dlg.remove())
+  dlg.addEventListener('close', () => {
+    // Stop any audio still playing before the dialog detaches.
+    dlg.querySelectorAll<HTMLVideoElement>('video').forEach((v) => { v.pause() })
+    dlg.remove()
+  })
 
   document.body.appendChild(dlg)
   update()

@@ -7,7 +7,8 @@ import type {
   ItemPhoto,
   FeedbackStatus, FeedbackIssue, FeedbackInput,
   LookupKind, LookupRow, LookupInput,
-  EbayConfig, EbaySearchResult
+  EbayConfig, EbaySearchResult,
+  ImportResult
 } from '@shared/types'
 
 const api: RoundhouseApi = {
@@ -87,6 +88,10 @@ const api: RoundhouseApi = {
   files: {
     saveCsv: (defaultName: string, content: string) =>
       ipcRenderer.invoke('files:saveCsv', defaultName, content) as Promise<string | null>
+  },
+  import: {
+    fromXlsx: (kind: CollectionKind) =>
+      ipcRenderer.invoke('import:fromXlsx', kind) as Promise<ImportResult>
   },
   print: {
     current: () => ipcRenderer.invoke('print:current') as Promise<void>

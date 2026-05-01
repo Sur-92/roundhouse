@@ -1,4 +1,5 @@
 :root {
+  /* Default (Trains) theme — warm brown / tan / amber. */
   --bg-overlay-1: rgba(20, 14, 10, 0.55);
   --bg-overlay-2: rgba(20, 14, 10, 0.78);
   --surface: rgba(40, 30, 22, 0.78);
@@ -11,12 +12,41 @@
   --muted: #9a8a72;
   --accent: #d8a05a;
   --accent-2: #b87a3c;
+  /* Componentized RGB triplet so any rgba() that needs the accent
+     tint can read a CSS variable. Any new rgba(...) tied to the
+     theme should use rgba(var(--accent-rgb), <alpha>). */
+  --accent-rgb: 216, 160, 90;
+  /* Dialog / popover panel background — opaque-ish surface that
+     overlays the gallery view. Themed so coin-side dialogs aren't
+     brown. */
+  --dialog-bg: rgba(35, 26, 20, 0.96);
   --danger: #c5604a;
   --danger-2: #d97a64;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
   --radius: 12px;
   --radius-sm: 8px;
+}
+
+/* Coins theme — navy blue, matched to the navy of the ROUNDHOUSE
+   plaque and the "COIN COLLECTION" book cover in the background image.
+   Applied to <body> when on a coins-side route; the router (plus
+   set-detail / item-detail) toggles the class. */
+body.theme-coins {
+  --bg-overlay-1: rgba(8, 14, 24, 0.55);
+  --bg-overlay-2: rgba(8, 14, 24, 0.78);
+  --surface: rgba(18, 30, 50, 0.78);
+  --surface-2: rgba(26, 42, 66, 0.85);
+  --surface-3: rgba(38, 58, 86, 0.9);
+  --border: rgba(150, 185, 220, 0.18);
+  --border-strong: rgba(150, 185, 220, 0.32);
+  --text: #e8eef6;
+  --text-dim: #b6c5d8;
+  --muted: #7a8da3;
+  --accent: #7ba8d4;       /* medium steel-navy, readable on dark surfaces */
+  --accent-2: #3f6896;     /* deeper navy, matches plaque base */
+  --accent-rgb: 123, 168, 212;
+  --dialog-bg: rgba(20, 32, 50, 0.96);
 }
 
 * { box-sizing: border-box; }
@@ -82,7 +112,7 @@ a:hover { color: var(--text); }
 }
 
 .brand-link:hover {
-  background: rgba(216, 160, 90, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
   border-color: var(--border);
   color: var(--accent);
 }
@@ -108,8 +138,8 @@ a:hover { color: var(--text); }
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.tabs a:hover { color: var(--text); background: rgba(216, 160, 90, 0.10); }
-.tabs a.active { color: var(--text); background: rgba(216, 160, 90, 0.22); }
+.tabs a:hover { color: var(--text); background: rgba(var(--accent-rgb), 0.10); }
+.tabs a.active { color: var(--text); background: rgba(var(--accent-rgb), 0.22); }
 
 /* ─── Main view ───────────────────────────────────────── */
 main#view {
@@ -198,9 +228,25 @@ main#view {
 
 .collection-card:hover {
   border-color: var(--accent);
-  background: rgba(40, 30, 22, 0.92);
+  background: var(--surface-2);
   color: var(--text);
   transform: translateY(-2px);
+}
+
+/* Coins card on Home: paint it in the navy palette so it matches the
+   coins side of the app even when the body theme is still default. */
+.collection-card--coins {
+  --accent: #7ba8d4;
+  --accent-2: #3f6896;
+  --accent-rgb: 123, 168, 212;
+  --border: rgba(150, 185, 220, 0.18);
+  --border-strong: rgba(150, 185, 220, 0.32);
+  --surface: rgba(18, 30, 50, 0.78);
+  --surface-2: rgba(26, 42, 66, 0.85);
+  --text: #e8eef6;
+  --text-dim: #b6c5d8;
+  background: var(--surface);
+  border-color: var(--border-strong);
 }
 
 .collection-card:active { transform: translateY(0); }
@@ -304,6 +350,106 @@ main#view {
 
 .head-actions { display: flex; gap: 0.5rem; }
 
+/* Title + inline aux button (e.g. "Search tips" beside the page title). */
+.panel-head .title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Page-section sub-nav (e.g. Trains: Items / Sets). Sits beside the
+ * <h2> page title inside .title-row. */
+.subnav {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.subnav-link {
+  display: inline-block;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  text-decoration: none;
+  color: var(--muted);
+  border: 1px solid transparent;
+}
+
+.subnav-link:hover {
+  color: var(--text);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.05));
+}
+
+.subnav-link.active {
+  color: var(--accent);
+  background: var(--surface, rgba(255, 255, 255, 0.04));
+  border-color: var(--border, rgba(255, 255, 255, 0.1));
+}
+
+/* "Add existing items/coins to this set/book" picker. */
+.add-existing-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.5rem 0 0.4rem;
+}
+
+.btn.small {
+  font-size: 0.82rem;
+  padding: 0.25rem 0.55rem;
+}
+
+.add-existing-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.add-existing-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.add-existing-row:hover {
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+.add-existing-row.is-already {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.add-existing-name { color: var(--text); font-weight: 500; }
+
+.add-existing-row .chip.small {
+  margin-left: auto;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+}
+
+/* Settings → Collection name editor. */
+.collection-name-section {
+  margin-bottom: 1.25rem;
+}
+
+.collection-name-form .form-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.save-status.ok { color: #4ade80; }
+.save-status.err { color: #f87171; }
+
 /* ─── Filters bar ─────────────────────────────────────── */
 .filters {
   display: flex;
@@ -400,8 +546,8 @@ main#view {
   display: inline-flex;
   align-items: center;
   padding: 0.15rem 0.5rem;
-  background: rgba(216, 160, 90, 0.18);
-  border: 1px solid rgba(216, 160, 90, 0.3);
+  background: rgba(var(--accent-rgb), 0.18);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
   border-radius: 999px;
   color: var(--accent);
   font-size: 0.78rem;
@@ -434,7 +580,7 @@ main#view {
   transition: background 0.15s ease, transform 0.05s ease, border-color 0.15s ease;
 }
 
-.btn:hover { background: rgba(216, 160, 90, 0.18); border-color: var(--accent); color: var(--text); }
+.btn:hover { background: rgba(var(--accent-rgb), 0.18); border-color: var(--accent); color: var(--text); }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -468,7 +614,7 @@ main#view {
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.icon-btn:hover { color: var(--text); background: rgba(216, 160, 90, 0.18); border-color: var(--border-strong); }
+.icon-btn:hover { color: var(--text); background: rgba(var(--accent-rgb), 0.18); border-color: var(--border-strong); }
 .icon-btn.danger:hover { color: var(--text); background: var(--danger); border-color: var(--danger); }
 
 /* ─── Helpers ─────────────────────────────────────────── */
@@ -478,7 +624,7 @@ main#view {
 }
 
 ::selection {
-  background: rgba(216, 160, 90, 0.4);
+  background: rgba(var(--accent-rgb), 0.4);
   color: var(--text);
 }
 
@@ -486,7 +632,7 @@ main#view {
 .rh-dialog {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  background: rgba(35, 26, 20, 0.96);
+  background: var(--dialog-bg);
   color: var(--text);
   padding: 0;
   max-width: 720px;
@@ -526,7 +672,7 @@ main#view {
   line-height: 1;
 }
 
-.rh-dialog-x:hover { background: rgba(216, 160, 90, 0.18); color: var(--text); }
+.rh-dialog-x:hover { background: rgba(var(--accent-rgb), 0.18); color: var(--text); }
 
 .rh-dialog-body { padding: 1.25rem; max-height: 70vh; overflow-y: auto; }
 
@@ -591,7 +737,7 @@ main#view {
 .field-inline select:focus {
   outline: none;
   border-color: var(--accent);
-  background: rgba(80, 60, 44, 1);
+  background: var(--surface-3);
 }
 
 .field input::placeholder, .field textarea::placeholder { color: var(--muted); }
@@ -642,21 +788,31 @@ main#view {
 .field-currency input:focus { background: transparent; }
 
 /* ─── Row table (items, sets) ─────────────────────────── */
+/* The wrap fills the remaining viewport height under the page header
+   and scrolls internally so table headers can stay locked at the top
+   via position: sticky on thead th. The exact pixel offset (240px) is
+   the rough sum of: topbar (~58) + main padding (~64) + panel-head
+   (~70) + filters (~44) + summary line. Trimming aggressively rather
+   than computing a precise number keeps things simple and resilient
+   to small layout changes. */
 .table-wrap {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  overflow: hidden;
+  overflow: auto;
+  max-height: calc(100vh - 240px);
+  min-height: 220px;
 }
 
 .rh-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;     /* required for sticky thead borders */
+  border-spacing: 0;
   font-size: 0.92rem;
 }
 
 .rh-table thead th {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--surface-2);  /* opaque so scrolled rows don't bleed through */
   text-align: left;
   padding: 0.55rem 0.85rem;
   font-weight: 500;
@@ -664,8 +820,20 @@ main#view {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  /* Box-shadow gives a subtle separator since border-collapse:separate
+     means the bottom border can clip behind sticky positioning. */
+  box-shadow: inset 0 -1px 0 var(--border-strong);
+}
+
+/* Print: shed the sticky/scrolling so all rows expand for paper. */
+@media print {
+  .table-wrap { overflow: visible; max-height: none; }
+  .rh-table thead th { position: static; box-shadow: none; }
 }
 
 .rh-table tbody td {
@@ -683,7 +851,7 @@ main#view {
 }
 
 .rh-table tbody tr[data-href]:hover {
-  background: rgba(216, 160, 90, 0.10);
+  background: rgba(var(--accent-rgb), 0.10);
 }
 
 .rh-table tbody tr[data-href]:hover .col-name { color: var(--accent); }
@@ -857,7 +1025,7 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
 
 .photo-tile.primary {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(216, 160, 90, 0.3);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.3);
 }
 
 .photo-tile.dragging { opacity: 0.4; cursor: grabbing; }
@@ -874,11 +1042,54 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
 
 .photo-tile-img-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-.photo-tile img {
+.photo-tile img,
+.media-tile-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* Video-tile play overlay + corner badge so videos are visually
+   distinct from photos in the gallery grid. */
+.media-tile-play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.6rem;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.photo-tile.is-video:hover .media-tile-play-overlay {
+  transform: scale(1.15);
+  color: #ffffff;
+}
+
+.media-tile-kind-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 1px 6px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* Lightbox video sizing — fill the figure like the lightbox image. */
+.lightbox-video {
+  max-width: 92vw;
+  max-height: 88vh;
+  display: block;
+  background: #000;
+  outline: none;
 }
 
 .primary-badge {
@@ -912,7 +1123,7 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
 .photo-caption-input::placeholder { color: var(--muted); font-style: italic; }
 .photo-caption-input:focus {
   outline: none;
-  background: rgba(216, 160, 90, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 .photo-tile-actions {
@@ -994,6 +1205,8 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
   box-sizing: border-box;
 }
 
+.lightbox-media-host { display: contents; }
+
 .lightbox-image {
   max-width: 100%;
   max-height: calc(92vh - 5rem);
@@ -1047,7 +1260,7 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
 .lightbox-next { right: 1rem; }
 
 .lightbox-close:hover,
-.lightbox-nav:hover { background: rgba(216, 160, 90, 0.4); }
+.lightbox-nav:hover { background: rgba(var(--accent-rgb), 0.4); }
 .lightbox-nav:disabled { opacity: 0.25; cursor: default; }
 
 .lightbox-counter {
@@ -1166,7 +1379,7 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
 }
 
 .state-badge.state-open {
-  background: rgba(216, 160, 90, 0.18);
+  background: rgba(var(--accent-rgb), 0.18);
   color: var(--accent);
 }
 
@@ -1236,12 +1449,12 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
 
 .kind-tab:hover {
   color: var(--text);
-  background: rgba(216, 160, 90, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 .kind-tab.active {
   color: var(--text);
-  background: rgba(216, 160, 90, 0.22);
+  background: rgba(var(--accent-rgb), 0.22);
   border-color: var(--accent);
 }
 
@@ -1304,7 +1517,7 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
 .settings-row.dragging {
   opacity: 0.5;
   border-color: var(--accent);
-  background: rgba(216, 160, 90, 0.12);
+  background: rgba(var(--accent-rgb), 0.12);
 }
 
 .settings-row.drag-over {
@@ -1395,7 +1608,7 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
 .help-popover {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  background: rgba(35, 26, 20, 0.96);
+  background: var(--dialog-bg);
   color: var(--text);
   padding: 1.1rem 1.3rem;
   max-width: 480px;
@@ -1811,8 +2024,8 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
 }
 
 .ebay-tag.fixed {
-  background: rgba(216, 160, 90, 0.18);
-  border: 1px solid rgba(216, 160, 90, 0.3);
+  background: rgba(var(--accent-rgb), 0.18);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
   color: var(--accent);
 }
 

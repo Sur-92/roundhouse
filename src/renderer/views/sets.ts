@@ -8,7 +8,13 @@ export async function renderSets(el: HTMLElement): Promise<void> {
   el.innerHTML = `
     <section class="panel">
       <header class="panel-head">
-        <h2>Sets</h2>
+        <div class="title-row">
+          <h2>Trains</h2>
+          <nav class="subnav" aria-label="Trains views">
+            <a href="#/items" class="subnav-link" data-subnav="items">Items</a>
+            <a href="#/sets" class="subnav-link active" data-subnav="sets">Sets</a>
+          </nav>
+        </div>
         <div class="filters">
           <label class="field-inline">
             <span class="field-label">Collection</span>

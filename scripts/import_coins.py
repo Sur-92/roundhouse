@@ -89,6 +89,34 @@ def map_type(raw: object) -> str:
     return "coin"
 
 
+# Maps free-form condition strings (as found in collector spreadsheets)
+# onto the Sheldon-scale value keys seeded in item_conditions for coins.
+# Anything not in this map is stored as-is (so users can keep custom
+# grades without breaking the import). Keep keys lowercased.
+_COIN_COND_MAP = {
+    "poor": "poor", "p-1": "poor",
+    "fair": "fair", "fr-2": "fair",
+    "about good": "about_good", "ag-3": "about_good",
+    "good": "good", "g-4": "good", "g-6": "good",
+    "very good": "very_good", "vg-8": "very_good", "vg-10": "very_good",
+    "fine": "fine", "f-12": "fine", "f-15": "fine",
+    "very fine": "very_fine", "vf-20": "very_fine", "vf-35": "very_fine",
+    "extremely fine": "extremely_fine", "ef-40": "extremely_fine", "ef-45": "extremely_fine",
+    "about uncirculated": "about_uncirculated", "au-50": "about_uncirculated", "au-58": "about_uncirculated",
+    "mint": "mint_state", "mint state": "mint_state",
+    "uncirculated": "mint_state", "unc": "mint_state",
+    "ms-60": "mint_state", "ms-65": "mint_state", "ms-70": "mint_state",
+    "proof": "proof", "pr-60": "proof", "pr-70": "proof",
+}
+
+
+def map_condition(raw: object) -> Optional[str]:
+    s = clean(raw)
+    if s is None:
+        return None
+    return _COIN_COND_MAP.get(s.lower(), s)
+
+
 def synthesize_name(country: Optional[str], face_value: Optional[float],
                     denomination: Optional[str], year: Optional[int],
                     mint: Optional[str]) -> str:
@@ -202,7 +230,7 @@ def main() -> int:
             year = to_int(year_raw)
             mint = clean(mint_raw)
             qty = to_int(qty_raw, 1) or 1
-            condition = clean(condition_raw)
+            condition = map_condition(condition_raw)
             value_cents = to_cents(value_raw)
             notes = clean(comment_raw)
             t = map_type(type_raw)
