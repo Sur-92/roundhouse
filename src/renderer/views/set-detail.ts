@@ -1,4 +1,4 @@
-import { escapeHtml } from '../lib/dom'
+import { escapeHtml, fmtCents } from '../lib/dom'
 import { confirmDialog, openDialog } from '../lib/dialog'
 import { openSetDialog } from './collection-detail'
 import { openItemDialog } from './items'
@@ -63,6 +63,7 @@ export async function renderSetDetail(el: HTMLElement, params: Record<string, st
           <button class="btn primary" data-action="new-item">${escapeHtml(kind === 'coins' ? 'New coin/bill' : 'New item')}</button>
         </div>
       </header>
+      ${kind === 'coins' ? '<div id="book-stats"></div>' : ''}
       <div class="table-wrap">
         <table class="rh-table" id="rows">
           ${tableShape.head}
@@ -74,9 +75,11 @@ export async function renderSetDetail(el: HTMLElement, params: Record<string, st
 
   const table = el.querySelector<HTMLTableElement>('#rows')!
   const tbody = table.querySelector('tbody')!
+  const bookStatsHost = el.querySelector<HTMLElement>('#book-stats')
 
   const refresh = async (): Promise<void> => {
     const items = await window.roundhouse.items.list({ setId: id })
+    if (bookStatsHost) bookStatsHost.innerHTML = renderBookStatsHtml(items)
     if (!items.length) {
       tbody.innerHTML = `<tr><td colspan="${tableShape.colspan}" class="empty-row">No ${kind === 'coins' ? 'coins' : 'items'} in this ${noun} yet.</td></tr>`
       return
@@ -246,4 +249,38 @@ async function openAddExistingDialog(
   })
 
   return movedCount
+}
+
+/**
+ * Coin-book totals tile row. Returns '' when the book is empty so the
+ * caller can drop the tiles entirely (issue #10 — only show once at
+ * least one coin is assigned).
+ *
+ * Math notes:
+ *   - units = Σ(quantity)         — a stack of 10 quarters counts as 10
+ *   - current value = Σ(current_value_cents × quantity)
+ *   - purchased = Σ(purchase_price_cents)  — matches the /coins list
+ *     summary (purchase price is per-row, not multiplied by quantity)
+ */
+function renderBookStatsHtml(items: Item[]): string {
+  if (!items.length) return ''
+  const count = items.length
+  const units = items.reduce((s, i) => s + (i.quantity || 1), 0)
+  const currentCents = items.reduce(
+    (s, i) => s + (i.current_value_cents ?? 0) * (i.quantity || 1),
+    0
+  )
+  const purchasedCents = items.reduce(
+    (s, i) => s + (i.purchase_price_cents ?? 0),
+    0
+  )
+  const tile = (num: string, label: string): string =>
+    `<div class="stat"><span class="stat-num">${escapeHtml(num)}</span><span class="stat-label">${escapeHtml(label)}</span></div>`
+  return `
+    <div class="stats book-stats">
+      ${tile(count.toLocaleString(), count === 1 ? 'coin' : 'coins')}
+      ${tile(units.toLocaleString(), units === 1 ? 'unit' : 'units')}
+      ${tile(fmtCents(currentCents), 'current value')}
+      ${tile(fmtCents(purchasedCents), 'purchased')}
+    </div>`
 }

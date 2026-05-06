@@ -1,5 +1,13 @@
 # Roundhouse Release Notes
 
+## v0.5.2 — 2026-05-06
+
+### Coin book totals (resolves #10)
+- **Stat tiles at the top of every coin book.** Open any book that has at least one coin in it and you'll see four tiles right under the header: **Coins · Units · Current value · Purchased**. Numbers refresh live as you add, remove, or delete coins.
+- "Units" is the sum of `quantity` across all coins in the book — a stack of 10 of the same coin counts as 10 units.
+- Empty books (no coins yet) hide the tiles entirely so the page doesn't read as a row of zeros.
+- Train sets are unchanged.
+
 ## v0.5.1 — 2026-05-01
 
 A polish pass on top of v0.5.0 — coin-shaped UI everywhere it should be, video support, real grouping for coins, and import without Python.
