@@ -1,5 +1,17 @@
 # Roundhouse Release Notes
 
+## v0.5.3 — 2026-05-06
+
+### Backup button (resolves #11)
+- **Settings → Data → 📦 Backup…** writes a portable `.zip` containing your full Roundhouse data: the `roundhouse.db` database plus every photo and video. Stash it on a USB drive, in cloud storage, anywhere safe — restore it on a new machine and you're back where you left off.
+- DB snapshot uses SQLite's online-backup API, so it's consistent even with the live DB open and WAL active.
+- Result dialog summarizes counts + size + duration with a **Show in folder** button so you can confirm the file landed.
+- Note: backups are your *data*. The app itself you reinstall normally — don't try to back up the install folder, that's where the ffmpeg.dll error in the original report came from.
+
+### CSV export — Windows triage
+- After saving, you now get a confirmation dialog with a **Show in folder** button (Explorer on Windows, Finder on macOS) so failures are obvious.
+- Save errors now show a clear error dialog instead of dying silently. Diagnostic logging records the path written, byte count, and any error.
+
 ## v0.5.2 — 2026-05-06
 
 ### Coin book totals (resolves #10)

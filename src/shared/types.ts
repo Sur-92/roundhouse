@@ -178,6 +178,18 @@ export interface ImportResult {
   canceled?: boolean;
 }
 
+/** Result of a Backup → .zip operation. */
+export interface BackupResult {
+  zipPath: string;
+  sizeBytes: number;
+  itemCount: number;
+  photoCount: number;
+  videoCount: number;
+  durationMs: number;
+  /** True when the user dismissed the file picker. */
+  canceled?: boolean;
+}
+
 export interface ItemFilter {
   setId?: number;
   collectionId?: number;
@@ -256,9 +268,13 @@ export interface RoundhouseApi {
   };
   files: {
     saveCsv(defaultName: string, content: string): Promise<string | null>;
+    showInFolder(filePath: string): Promise<void>;
   };
   import: {
     fromXlsx(kind: CollectionKind): Promise<ImportResult>;
+  };
+  backup: {
+    create(): Promise<BackupResult>;
   };
   print: {
     current(): Promise<void>;

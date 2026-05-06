@@ -450,6 +450,22 @@ main#view {
   margin-bottom: 1.25rem;
 }
 
+/* Settings → Data section (Backup, etc.). */
+.data-section { margin-top: 1.5rem; }
+
+.data-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0;
+}
+
+.data-actions .btn[disabled] {
+  opacity: 0.7;
+  cursor: progress;
+}
+
 .collection-name-form .form-actions {
   display: flex;
   align-items: center;

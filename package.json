@@ -1,6 +1,6 @@
 {
   "name": "roundhouse",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "A desktop catalog for model train and coin collections.",
   "main": "./out/main/index.js",
   "author": "Steve Beamesderfer",
@@ -16,11 +16,13 @@
     "setup": "npm install --ignore-scripts && node node_modules/electron/install.js && electron-builder install-app-deps"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "better-sqlite3": "^11.7.0",
     "electron-updater": "^6.8.3",
     "exceljs": "^4.4.0"
   },
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.0",
     "electron": "^33.3.0",

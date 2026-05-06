@@ -75,6 +75,8 @@ export async function renderSettings(el: HTMLElement): Promise<void> {
       <div id="collection-name-host"></div>
 
       <div class="settings-sections" id="sections"></div>
+
+      <div id="data-section-host"></div>
     </section>
   `
 
@@ -90,6 +92,9 @@ export async function renderSettings(el: HTMLElement): Promise<void> {
   // Collection-name editor (kind-specific) — lets the user rename
   // "Carey's Trains" / "Coin Collection" to whatever they want.
   void hydrateCollectionNameSection(kind, el.querySelector<HTMLElement>('#collection-name-host')!)
+
+  // Kind-agnostic Data section — Backup, etc.
+  hydrateDataSection(el.querySelector<HTMLElement>('#data-section-host')!)
 
   const host = el.querySelector<HTMLDivElement>('#sections')!
   const sections = SECTIONS.filter((s) => !s.hideForKinds?.includes(kind))
@@ -379,6 +384,67 @@ async function openLookupDialog(
         })
         return false
       }
+    }
+  })
+}
+
+/**
+ * Kind-agnostic Data section. Today this is just a "Backup…" button
+ * that writes a portable .zip of `roundhouse.db` + the entire photos/
+ * directory. Settings was the natural home (one-time admin action,
+ * not a per-kind setting). Restore is intentionally not here yet —
+ * it's the natural pair but hasn't shipped (issue #11 only asked for
+ * backup).
+ */
+function hydrateDataSection(host: HTMLElement): void {
+  host.innerHTML = `
+    <section class="settings-section data-section">
+      <header class="settings-section-head">
+        <div>
+          <h3>Data</h3>
+          <p class="muted small">Save a portable copy of all your Roundhouse data — the database plus every photo and video — as a single .zip file. Stash it on a USB drive, in cloud storage, anywhere safe.</p>
+        </div>
+      </header>
+      <div class="data-actions">
+        <button class="btn primary" data-action="backup">📦 Backup…</button>
+        <span class="muted small">Backups include: items, books/sets, photos, videos, settings/lookups. They do <em>not</em> include the app itself — reinstall Roundhouse on a new machine, then restore your data.</span>
+      </div>
+    </section>`
+
+  host.querySelector<HTMLButtonElement>('[data-action="backup"]')!.addEventListener('click', async () => {
+    const btn = host.querySelector<HTMLButtonElement>('[data-action="backup"]')!
+    const originalLabel = btn.textContent
+    btn.disabled = true
+    btn.textContent = '⏳ Backing up…'
+    try {
+      const r = await window.roundhouse.backup.create()
+      btn.disabled = false
+      btn.textContent = originalLabel
+      if (r.canceled) return
+      const sizeMb = (r.sizeBytes / 1_048_576).toFixed(1)
+      const photoLine = r.photoCount + r.videoCount > 0
+        ? `${r.photoCount.toLocaleString()} photo${r.photoCount === 1 ? '' : 's'}, ${r.videoCount.toLocaleString()} video${r.videoCount === 1 ? '' : 's'}`
+        : 'no photos or videos yet'
+      const ok = await openDialog({
+        title: 'Backup complete',
+        body: `
+          <p class="dialog-message">Saved <strong>${r.itemCount.toLocaleString()}</strong> item${r.itemCount === 1 ? '' : 's'} (${escapeHtml(photoLine)}) — <strong>${escapeHtml(sizeMb)} MB</strong> in ${(r.durationMs / 1000).toFixed(1)} s.</p>
+          <p class="dialog-message muted small" style="word-break:break-all">${escapeHtml(r.zipPath)}</p>
+          <p class="dialog-message small">Store the .zip somewhere outside this computer (USB drive, cloud, etc.) so a hardware failure doesn't take both your collection and your backup.</p>
+        `,
+        submitLabel: 'Show in folder',
+        cancelLabel: 'Done'
+      })
+      if (ok) await window.roundhouse.files.showInFolder(r.zipPath)
+    } catch (err) {
+      btn.disabled = false
+      btn.textContent = originalLabel
+      await openDialog({
+        title: 'Backup failed',
+        body: `<p class="dialog-message">${escapeHtml(String(err))}</p><p class="dialog-message muted small">Check that you picked a folder you can write to (Documents is usually safe). If this keeps happening, copy the message above and submit a feedback report.</p>`,
+        submitLabel: 'OK',
+        cancelLabel: 'Close'
+      })
     }
   })
 }

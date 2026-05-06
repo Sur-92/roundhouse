@@ -250,8 +250,26 @@ export async function renderItemsForKind(el: HTMLElement, kind: CollectionKind):
   el.querySelector<HTMLButtonElement>('[data-action="export-csv"]')!.addEventListener('click', async () => {
     const csv = kind === 'coins' ? buildCoinsCsv(lastItems) : buildTrainsCsv(lastItems)
     const stamp = new Date().toISOString().slice(0, 10)
-    const path = await window.roundhouse.files.saveCsv(`roundhouse-${kind}-${stamp}.csv`, csv)
-    if (path) console.log(`Exported ${kind} CSV →`, path)
+    let path: string | null = null
+    try {
+      path = await window.roundhouse.files.saveCsv(`roundhouse-${kind}-${stamp}.csv`, csv)
+    } catch (err) {
+      await openDialog({
+        title: 'CSV export failed',
+        body: `<p class="dialog-message">${escapeHtml(String(err))}</p><p class="dialog-message muted small">If this keeps happening, try saving to a different folder (e.g. your Documents directory).</p>`,
+        submitLabel: 'OK',
+        cancelLabel: 'Close'
+      })
+      return
+    }
+    if (!path) return // user canceled
+    const ok = await openDialog({
+      title: 'CSV exported',
+      body: `<p class="dialog-message">Saved <strong>${lastItems.length.toLocaleString()}</strong> ${kind === 'coins' ? 'records' : 'items'} to:</p><p class="dialog-message muted small" style="word-break:break-all">${escapeHtml(path)}</p>`,
+      submitLabel: 'Show in folder',
+      cancelLabel: 'Done'
+    })
+    if (ok) await window.roundhouse.files.showInFolder(path)
   })
 
   el.querySelector<HTMLButtonElement>('[data-action="import-xlsx"]')!.addEventListener('click', async () => {

@@ -8,6 +8,7 @@ import { shell } from 'electron'
 import { buildSearchClauses } from './search'
 import { diagLog, getDiagLogPath, openDiagLogInEditor, resetDiagLog } from './diag'
 import { importTrainsXlsx, importCoinsXlsx, type ImportResult } from './import-xlsx'
+import { createBackup, type BackupResult } from './backup'
 import type {
   Collection, CollectionInput, CollectionKind,
   TrainSet, TrainSetInput,
@@ -398,10 +399,50 @@ export function registerIpc(): void {
         { name: 'All Files', extensions: ['*'] }
       ]
     })
-    if (result.canceled || !result.filePath) return null
-    // BOM lets Excel detect UTF-8 correctly when opening directly.
-    writeFileSync(result.filePath, '﻿' + content, 'utf8')
-    return result.filePath
+    if (result.canceled || !result.filePath) {
+      diagLog('[csv] saveCsv canceled by user')
+      return null
+    }
+    try {
+      // BOM lets Excel detect UTF-8 correctly when opening directly.
+      // Content is built in the renderer with CRLF line endings.
+      writeFileSync(result.filePath, '﻿' + content, 'utf8')
+      diagLog(`[csv] wrote ${content.length} bytes (+BOM) to ${result.filePath}`)
+      return result.filePath
+    } catch (err) {
+      diagLog(`[csv] FAILED writing ${result.filePath}: ${String(err)}`)
+      throw err
+    }
+  })
+
+  // Reveal an arbitrary file in the OS file manager (Explorer on
+  // Windows, Finder on macOS). Used as a follow-up after CSV export
+  // and Backup so the user can confirm the file landed.
+  ipcMain.handle('files:showInFolder', (_e, filePath: string) => {
+    try {
+      shell.showItemInFolder(filePath)
+    } catch (err) {
+      diagLog(`[files] showItemInFolder failed for ${filePath}: ${String(err)}`)
+    }
+  })
+
+  // ─── Backup (DB + media → portable .zip) ─────────────
+  ipcMain.handle('backup:create', async (e: IpcMainInvokeEvent): Promise<BackupResult & { canceled?: boolean }> => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const stamp = new Date().toISOString().slice(0, 10)
+    const result = await dialog.showSaveDialog(win!, {
+      title: 'Save Roundhouse Backup',
+      defaultPath: `Roundhouse-Backup-${stamp}.zip`,
+      filters: [
+        { name: 'Zip archive', extensions: ['zip'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    if (result.canceled || !result.filePath) {
+      return { zipPath: '', sizeBytes: 0, itemCount: 0, photoCount: 0, videoCount: 0, durationMs: 0, canceled: true }
+    }
+    diagLog(`[backup] starting → ${result.filePath}`)
+    return createBackup(result.filePath)
   })
 
   ipcMain.handle('print:current', (e: IpcMainInvokeEvent) => {
