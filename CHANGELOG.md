@@ -1,5 +1,12 @@
 # Roundhouse Release Notes
 
+## v0.5.4 — 2026-05-10
+
+### Hotfix: v0.5.3 crashed on Windows at launch
+- **What you'd see**: a blue-bordered "A JavaScript error occurred in the main process" dialog with `Error: Cannot find module 'archiver-utils'` immediately after launching the updated v0.5.3 build. Mac users were unaffected.
+- **Root cause**: when `archiver` (the zip library added in v0.5.3 for the Backup feature) loaded, it required `archiver-utils` from `app.asar/node_modules/...`, but electron-builder's production-deps walker had dropped that hoisted transitive dep from the asar on Windows. Known quirk.
+- **Fix**: bundle `archiver` and all its transitive deps directly into the main JS at build time, so there's no runtime `require` chain for the packaging walker to walk through. No behavior change — Backup, CSV export, everything else is identical to v0.5.3, just without the crash.
+
 ## v0.5.3 — 2026-05-06
 
 ### Backup button (resolves #11)
