@@ -1,5 +1,34 @@
 # Roundhouse Release Notes
 
+## v0.5.5 — 2026-05-13
+
+A small quality-of-life batch driven by Surface-user feedback.
+
+### Coin Face value accepts fractions (resolves #12)
+The Face value field on the New / Edit coin form now takes anything you'd reasonably type for a fractional coin:
+- decimals: `0.5`, `.5`, `0.25`
+- fractions: `1/2`, `3/4`, `1/100`, mixed `1 1/2`
+- glyphs: `½`, `¼`, `¾`, `⅓`, `⅔`, eighths
+On blur the input normalizes to its canonical display form (`1/2` → `½`). Unparseable input shows an inline red error and blocks Save. List rows and item detail now show `½ Dollar` instead of `0.5 Dollar`.
+
+### Search box knows about Source — and a lot more (resolves #13)
+The main search box on `/coins` and `/trains` was missing the `source` column from its fuzzy bare-search, so typing `HeritCoin` returned nothing even when the source column held that value. It also required `:` as the field separator and rejected the natural `key=value` form.
+- **Bare search** now also covers `source`, plus the coin-side fields (`country`, `denomination`, `mint_mark`, `road_name`).
+- **Field separator** now accepts either `:` or `=`. `source=HeritCoin` works identically to `source:HeritCoin`.
+- **Coin-aware field aliases**: `country:`, `denomination:` (or `denom:`), `mint:` (or `mint_mark:`), `qty:` (or `quantity:`), `storage:`.
+- **Search-tips popover** restored next to the Search label on the Trains side (was removed in the v0.5.1 polish pass) and a new coin-specific popover added on the Coins side, each with kind-appropriate examples.
+
+### Filters stick between visits (resolves #16)
+Adding many coins of the same country was tedious — the Country filter reset every time you left and came back to /coins. Now:
+- **Country** (coins) and **Type** (both kinds) filters are persisted in sessionStorage per kind. Pick "Mexico", drill into a coin to verify, click Coins tab — Mexico is still selected.
+- Picking "All" clears the persisted filter, as you'd expect.
+- Filter values that no longer exist (e.g. you deleted every Mexican coin from the collection) are silently dropped on the next visit.
+
+### Housekeeping
+- Closed #14 as duplicate of #13.
+- Closed #15 (meta-note about #14).
+- Closed #17 with a thank-you to the submitter.
+
 ## v0.5.4 — 2026-05-10
 
 ### Hotfix: v0.5.3 crashed on Windows at launch

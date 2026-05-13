@@ -19,28 +19,48 @@
  */
 
 const FIELD_ALIAS: Record<string, string> = {
+  // Trains
   mfg: 'manufacturer',
   manufacturer: 'manufacturer',
   model: 'model_number',
   model_number: 'model_number',
   road: 'road_name',
   road_name: 'road_name',
+  scale: 'scale',
+  era: 'era',
+  // Coins
+  country: 'country',
+  denomination: 'denomination',
+  denom: 'denomination',
+  mint: 'mint_mark',
+  mint_mark: 'mint_mark',
+  qty: 'quantity',
+  quantity: 'quantity',
+  // Shared
   name: 'name',
   type: 'type',
-  scale: 'scale',
   condition: 'condition',
   source: 'source',
-  era: 'era',
   year: 'year',
   notes: 'notes',
+  storage: 'storage_location',
+  storage_location: 'storage_location',
   // Pseudo-fields handled specially (see buildSearchClauses).
   photos: '__photos__'
 }
 
-// The fuzzy bare-search hits all of these. SQL injection is impossible
-// here because we never interpolate user input — all column names below
-// are hard-coded and values flow through prepared-statement bindings.
-const FUZZY_COLUMNS = ['name', 'manufacturer', 'model_number', 'notes'] as const
+// The fuzzy bare-search hits all of these. Columns that are always
+// NULL on one kind (manufacturer on coins, country on trains) just
+// no-op — LIKE against NULL is unknown, never matches. SQL injection
+// is impossible here because we never interpolate user input — column
+// names are hard-coded and values flow through prepared-statement
+// bindings.
+const FUZZY_COLUMNS = [
+  'name',
+  'manufacturer', 'model_number', 'road_name',
+  'country', 'denomination', 'mint_mark',
+  'notes', 'source'
+] as const
 
 interface ParsedToken {
   negate: boolean
@@ -80,12 +100,18 @@ function parseToken(raw: string): ParsedToken | null {
   }
   if (!s) return null
 
+  // Accept either : or = as the field separator — the Surface user
+  // habitually types `source=HeritCoin` which is a natural mental model
+  // (assignment syntax). Whichever appears earlier wins, so `key:val=ish`
+  // still parses as field=`key`, value=`val=ish`.
   const colon = s.indexOf(':')
-  if (colon === -1) {
+  const equal = s.indexOf('=')
+  const sep = colon === -1 ? equal : (equal === -1 ? colon : Math.min(colon, equal))
+  if (sep === -1) {
     return { negate, value: s }
   }
-  const fieldRaw = s.slice(0, colon).trim().toLowerCase()
-  const value = s.slice(colon + 1)
+  const fieldRaw = s.slice(0, sep).trim().toLowerCase()
+  const value = s.slice(sep + 1)
   const field = FIELD_ALIAS[fieldRaw]
   if (!field) {
     // Unknown field — fall back to a fuzzy match on the whole token so

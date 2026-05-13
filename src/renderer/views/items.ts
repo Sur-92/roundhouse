@@ -91,9 +91,13 @@ export async function renderItemsForKind(el: HTMLElement, kind: CollectionKind):
           <button class="btn primary" data-action="new">${escapeHtml(newLabel)}</button>
         </div>
       </header>
+      ${kind === 'trains' ? trainsSearchHelpPopoverHtml() : coinsSearchHelpPopoverHtml()}
       <div class="filters no-print">
         <label class="field-inline filter-search">
-          <span class="field-label">Search</span>
+          <span class="field-label">
+            Search
+            <button type="button" class="help-dot" popovertarget="search-help" aria-label="Search syntax help">?</button>
+          </span>
           <input id="f-search" type="search" placeholder="Search this collection…" />
         </label>
         <label class="field-inline">
@@ -142,6 +146,33 @@ export async function renderItemsForKind(el: HTMLElement, kind: CollectionKind):
     fCountry.innerHTML += countries
       .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
       .join('')
+  }
+
+  // Restore persisted filter values (issue #16) so the user doesn't
+  // re-pick their working country every time they leave and come back
+  // to /coins. Keys are kind-prefixed so trains and coins don't
+  // collide. "All" / empty selections write nothing (remove the key).
+  const typeKey = `${kind}.filter.type`
+  const countryKey = 'coins.filter.country'
+
+  const savedType = sessionStorage.getItem(typeKey)
+  if (savedType) {
+    // Only restore if the option still exists in the dropdown.
+    if (Array.from(fType.options).some((o) => o.value === savedType)) {
+      fType.value = savedType
+    } else {
+      sessionStorage.removeItem(typeKey)
+    }
+  }
+  if (fCountry) {
+    const savedCountry = sessionStorage.getItem(countryKey)
+    if (savedCountry) {
+      if (Array.from(fCountry.options).some((o) => o.value === savedCountry)) {
+        fCountry.value = savedCountry
+      } else {
+        sessionStorage.removeItem(countryKey)
+      }
+    }
   }
 
   let lastItems: Item[] = []
@@ -213,9 +244,17 @@ export async function renderItemsForKind(el: HTMLElement, kind: CollectionKind):
     window.clearTimeout(searchTimer)
     searchTimer = window.setTimeout(() => void refresh(), 200)
   })
-  fType.addEventListener('change', () => void refresh())
+  fType.addEventListener('change', () => {
+    if (fType.value) sessionStorage.setItem(typeKey, fType.value)
+    else sessionStorage.removeItem(typeKey)
+    void refresh()
+  })
   fScale?.addEventListener('change', () => void refresh())
-  fCountry?.addEventListener('change', () => void refresh())
+  fCountry?.addEventListener('change', () => {
+    if (fCountry.value) sessionStorage.setItem(countryKey, fCountry.value)
+    else sessionStorage.removeItem(countryKey)
+    void refresh()
+  })
 
   // Coins sub-nav (All / Mints / Proofs / Books). All/Mints/Proofs are
   // in-page filters; Books navigates away to /books and is left alone
@@ -604,4 +643,104 @@ export async function openItemDialog(
       return true
     }
   })
+}
+
+// ─── Search syntax help popovers (kind-aware) ────────────────────
+//
+// Both popovers use the same #search-help id and the same .help-popover
+// CSS class. Only one is rendered per page (kind-gated in the panel
+// template above), so the id collision never happens at runtime. Field
+// separator accepts both `:` and `=` since v0.5.5 (resolves #13).
+
+function trainsSearchHelpPopoverHtml(): string {
+  return `
+    <div id="search-help" popover="auto" class="help-popover">
+      <header class="help-popover-head">
+        <h3>Search tips · Trains</h3>
+        <button type="button" class="icon-btn" popovertarget="search-help" popovertargetaction="hide" aria-label="Close">×</button>
+      </header>
+      <p class="help-popover-lede">Type words to search by name, manufacturer, model number, road name, notes, and source. The patterns below let you go further. <strong>:</strong> and <strong>=</strong> both work as the field separator.</p>
+
+      <h4>Restrict to a field</h4>
+      <ul class="help-list">
+        <li><code>mfg:bachmann</code><span class="help-desc">manufacturer contains <em>bachmann</em></span></li>
+        <li><code>scale:HO</code><span class="help-desc">only HO scale</span></li>
+        <li><code>type:locomotive</code><span class="help-desc">only locomotives</span></li>
+        <li><code>road:union</code><span class="help-desc">road name contains <em>union</em></span></li>
+        <li><code>year:1985</code><span class="help-desc">items from 1985</span></li>
+        <li><code>source=eBay</code><span class="help-desc">items sourced from eBay</span></li>
+      </ul>
+
+      <h4>Find items missing a value</h4>
+      <ul class="help-list">
+        <li><code>mfg:</code><span class="help-desc">manufacturer is blank</span></li>
+        <li><code>year:</code><span class="help-desc">no year recorded</span></li>
+        <li><code>scale:</code><span class="help-desc">no scale assigned</span></li>
+        <li><code>photos:</code><span class="help-desc">no photos uploaded</span></li>
+        <li><code>-photos:</code><span class="help-desc">items that have at least one photo</span></li>
+      </ul>
+
+      <h4>Exclude with a minus</h4>
+      <ul class="help-list">
+        <li><code>-bachmann</code><span class="help-desc">exclude items matching <em>bachmann</em></span></li>
+        <li><code>-mfg:bachmann</code><span class="help-desc">exclude Bachmann manufacturer</span></li>
+        <li><code>-mfg:</code><span class="help-desc">only items that have a manufacturer</span></li>
+      </ul>
+
+      <h4>Combine</h4>
+      <ul class="help-list">
+        <li><code>scale:HO -mfg:</code><span class="help-desc">HO items with no manufacturer</span></li>
+        <li><code>"box car" -bachmann</code><span class="help-desc">phrase, excluding Bachmann</span></li>
+      </ul>
+
+      <h4>Available fields</h4>
+      <p class="help-desc">name, mfg, model, scale, type, condition, source, road, era, year, notes, storage, photos</p>
+    </div>`
+}
+
+function coinsSearchHelpPopoverHtml(): string {
+  return `
+    <div id="search-help" popover="auto" class="help-popover">
+      <header class="help-popover-head">
+        <h3>Search tips · Coins</h3>
+        <button type="button" class="icon-btn" popovertarget="search-help" popovertargetaction="hide" aria-label="Close">×</button>
+      </header>
+      <p class="help-popover-lede">Type words to search by name, country, denomination, mint mark, notes, and source. The patterns below let you go further. <strong>:</strong> and <strong>=</strong> both work as the field separator.</p>
+
+      <h4>Restrict to a field</h4>
+      <ul class="help-list">
+        <li><code>country:USA</code><span class="help-desc">country contains <em>USA</em></span></li>
+        <li><code>denomination:dollar</code><span class="help-desc">denomination contains <em>dollar</em></span></li>
+        <li><code>mint:S</code><span class="help-desc">San Francisco mint mark</span></li>
+        <li><code>year:1898</code><span class="help-desc">coins from 1898</span></li>
+        <li><code>type:bill</code><span class="help-desc">only paper bills (vs coin)</span></li>
+        <li><code>source=HeritCoin</code><span class="help-desc">items sourced from HeritCoin</span></li>
+        <li><code>condition:proof</code><span class="help-desc">proof-grade coins</span></li>
+      </ul>
+
+      <h4>Find items missing a value</h4>
+      <ul class="help-list">
+        <li><code>country:</code><span class="help-desc">no country recorded</span></li>
+        <li><code>year:</code><span class="help-desc">no year recorded</span></li>
+        <li><code>mint:</code><span class="help-desc">no mint mark</span></li>
+        <li><code>photos:</code><span class="help-desc">no photos uploaded</span></li>
+        <li><code>-photos:</code><span class="help-desc">coins that have at least one photo</span></li>
+      </ul>
+
+      <h4>Exclude with a minus</h4>
+      <ul class="help-list">
+        <li><code>-morgan</code><span class="help-desc">exclude coins matching <em>morgan</em></span></li>
+        <li><code>-country:USA</code><span class="help-desc">exclude US coins</span></li>
+        <li><code>-condition:</code><span class="help-desc">only coins with a condition set</span></li>
+      </ul>
+
+      <h4>Combine</h4>
+      <ul class="help-list">
+        <li><code>country:USA year:1898</code><span class="help-desc">US coins from 1898</span></li>
+        <li><code>"silver dollar" -morgan</code><span class="help-desc">silver dollars, excluding Morgan</span></li>
+      </ul>
+
+      <h4>Available fields</h4>
+      <p class="help-desc">name, country, denomination, mint, year, qty, type, condition, source, notes, storage, photos</p>
+    </div>`
 }
