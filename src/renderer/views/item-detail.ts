@@ -3,6 +3,7 @@ import { confirmDialog } from '../lib/dialog'
 import { openLightbox } from '../lib/lightbox'
 import { openConditionHelp, conditionHelpDotHtml } from '../lib/condition-help'
 import { renderEbayPanel } from '../lib/ebay'
+import { formatFractional } from '../lib/fraction'
 import { openItemDialog } from './items'
 import { navigate } from '../router'
 import type { Item, ItemPhoto, TrainSet, Collection } from '@shared/types'
@@ -90,7 +91,7 @@ export async function renderItemDetail(el: HTMLElement, params: Record<string, s
           ${field('Type', typeLabel(item.type))}
           ${itemKind === 'coins' ? `
             ${field('Country', item.country)}
-            ${field('Face value', item.face_value)}
+            ${field('Face value', item.face_value != null ? formatFractional(item.face_value) : null)}
             ${field('Denomination', item.denomination)}
             ${field('Mint mark', item.mint_mark)}
             ${field('Year', item.year)}

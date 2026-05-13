@@ -1,4 +1,5 @@
 import { escapeHtml, fmtCents, fmtDate, typeLabel } from './dom'
+import { formatFractional } from './fraction'
 import type { CollectionKind, Item, TrainSet, Collection } from '@shared/types'
 
 /**
@@ -94,7 +95,7 @@ export function coinItemRowHtml(item: Item, opts?: RowOpts): string {
     : `<span class="row-thumb-empty" title="No photo">🪙</span>`
   const totalCents = item.current_value_cents != null ? item.current_value_cents * (item.quantity || 1) : null
   const faceDisplay = item.face_value != null
-    ? `${item.face_value}${item.denomination ? ' ' + escapeHtml(item.denomination) : ''}`
+    ? `${escapeHtml(formatFractional(item.face_value))}${item.denomination ? ' ' + escapeHtml(item.denomination) : ''}`
     : (item.denomination ? escapeHtml(item.denomination) : '')
   return `
     <tr data-href="/items/${item.id}">

@@ -1594,6 +1594,10 @@ tr:hover .col-actions .icon-btn { opacity: 1; }
   font-size: 0.78rem;
 }
 
+.field-hint[data-face-value-error] {
+  color: var(--danger);
+}
+
 .mono {
   font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
 }

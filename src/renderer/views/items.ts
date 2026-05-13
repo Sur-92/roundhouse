@@ -5,6 +5,7 @@ import { loadLookups, lookupOptions, lookupLabel } from '../lib/lookups'
 import { openConditionHelp } from '../lib/condition-help'
 import { wireRowTable, rowsForKind } from '../lib/rows'
 import { buildCsv } from '../lib/csv'
+import { parseFractional, formatFractional } from '../lib/fraction'
 import type { CollectionKind, Item, ItemInput, ItemType, Scale, ItemFilter, TrainSet } from '@shared/types'
 
 /**
@@ -451,7 +452,13 @@ export async function openItemDialog(
           <select id="f-set_id" name="set_id">${bookOptionsHtml}</select>
         </label>
         ${fieldHtml({ label: 'Country', name: 'country', value: existing?.country, placeholder: 'e.g. USA, Canada, UK' })}
-        ${fieldHtml({ label: 'Face value', name: 'face_value', type: 'number', value: existing?.face_value ?? '', placeholder: 'e.g. 1, 25, 1000' })}
+        <label class="field" for="f-face_value">
+          <span class="field-label">Face value</span>
+          <input id="f-face_value" name="face_value" type="text" inputmode="decimal"
+            value="${formatFractional(existing?.face_value ?? null) || (existing?.face_value ?? '')}"
+            placeholder="e.g. 1, 25, 1/2, 0.5, ½" autocomplete="off" />
+          <span class="field-hint muted small" data-face-value-error hidden></span>
+        </label>
         ${fieldHtml({ label: 'Denomination', name: 'denomination', value: existing?.denomination, placeholder: 'e.g. Dollar, Pesos, Yuan' })}
         ${fieldHtml({ label: 'Year', name: 'year', type: 'number', value: existing?.year })}
         ${fieldHtml({ label: 'Mint mark', name: 'mint_mark', value: existing?.mint_mark, placeholder: 'e.g. P, D, S, W' })}
@@ -520,11 +527,50 @@ export async function openItemDialog(
     }
   })
 
+  // Face value (coins only) — live blur conversion. The user can type
+  // "1/2" or "½" or ".5"; on blur we normalize to a decimal and show
+  // an inline error if the value is unparseable.
+  const fvInput = body.querySelector<HTMLInputElement>('#f-face_value')
+  const fvError = body.querySelector<HTMLElement>('[data-face-value-error]')
+  if (fvInput && fvError) {
+    fvInput.addEventListener('blur', () => {
+      const raw = fvInput.value.trim()
+      if (!raw) {
+        fvError.hidden = true
+        fvError.textContent = ''
+        return
+      }
+      const parsed = parseFractional(raw)
+      if (parsed == null) {
+        fvError.hidden = false
+        fvError.textContent = `Couldn't read "${raw}" — try a decimal (0.5), fraction (1/2), or glyph (½).`
+        return
+      }
+      fvError.hidden = true
+      fvError.textContent = ''
+      // Replace input with the canonical display form so the user sees
+      // exactly what's about to be stored (and so re-blurs are no-ops).
+      fvInput.value = formatFractional(parsed)
+    })
+  }
+
   return openDialog({
     title: existing ? `Edit ${kind === 'coins' ? 'coin/bill' : 'item'}` : `New ${kind === 'coins' ? 'coin/bill' : 'item'}`,
     body,
     submitLabel: existing ? 'Save changes' : 'Create',
     onSubmit: async () => {
+      // Face value: parse text → number. Reject unparseable non-empty input.
+      if (fvInput && fvInput.value.trim()) {
+        const fvParsed = parseFractional(fvInput.value)
+        if (fvParsed == null) {
+          fvInput.focus()
+          if (fvError) {
+            fvError.hidden = false
+            fvError.textContent = `Couldn't read "${fvInput.value.trim()}" — try a decimal, fraction, or glyph.`
+          }
+          return false
+        }
+      }
       if (!body.reportValidity()) return false
       const data = readForm(body, ['purchase_price_cents', 'current_value_cents'])
 
@@ -539,7 +585,7 @@ export async function openItemDialog(
         road_name: (data['road_name'] as string | null) ?? null,
         era: (data['era'] as string | null) ?? null,
         country: (data['country'] as string | null) ?? null,
-        face_value: data['face_value'] != null ? Number(data['face_value']) : null,
+        face_value: parseFractional(data['face_value']),
         denomination: (data['denomination'] as string | null) ?? null,
         mint_mark: (data['mint_mark'] as string | null) ?? null,
         quantity: data['quantity'] != null ? Math.max(1, Number(data['quantity'])) : 1,
