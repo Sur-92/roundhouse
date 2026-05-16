@@ -7,7 +7,7 @@ import { getEbayStatus, searchForItem as ebaySearchForItem } from './ebay'
 import { shell } from 'electron'
 import { buildSearchClauses } from './search'
 import { diagLog, getDiagLogPath, openDiagLogInEditor, resetDiagLog } from './diag'
-import { importTrainsXlsx, importCoinsXlsx, type ImportResult } from './import-xlsx'
+import { importTrainsXlsx, importCoinsXlsx, peekXlsxRowCount, type ImportResult } from './import-xlsx'
 import { createBackup, type BackupResult } from './backup'
 import type {
   FindReplaceOptions, FindReplaceResult, FindReplaceField, FindReplaceMatch
@@ -375,6 +375,37 @@ export function registerIpc(): void {
     const collection = db.prepare('SELECT id FROM collections WHERE kind = ? ORDER BY id LIMIT 1').get(kind) as { id: number } | undefined
     if (!collection) {
       throw new Error(`No collection found for kind=${kind}. Restart Roundhouse to let the migration runner create it.`)
+    }
+
+    // Pre-import sanity check: peek at the row count and prompt the
+    // user before committing to anything ≥ 5,000 rows. Catches "wrong
+    // file picked" / "tiny file, wrong sheet bounds" type mistakes
+    // BEFORE we run the transaction. The 50K-insert cap inside the
+    // importer is the safety belt; this is the seatbelt warning.
+    const PROMPT_THRESHOLD = 5_000
+    let expectedRows = 0
+    try {
+      expectedRows = await peekXlsxRowCount(filePath)
+    } catch (err) {
+      diagLog(`[import] peek failed (${filePath}): ${String(err)} — proceeding without confirmation`)
+    }
+    if (expectedRows >= PROMPT_THRESHOLD) {
+      diagLog(`[import] confirmation prompt: ${expectedRows} expected rows`)
+      const choice = await dialog.showMessageBox(win!, {
+        type: 'question',
+        buttons: ['Cancel', `Import all ${expectedRows.toLocaleString()} rows`],
+        defaultId: 0,
+        cancelId: 0,
+        title: 'Confirm large import',
+        message: `This worksheet has ${expectedRows.toLocaleString()} data rows.`,
+        detail: kind === 'trains'
+          ? `That's a lot of trains! Click "Import all" if this matches the file you intended to import. Click Cancel if it looks wrong (e.g. you picked the wrong file, or the sheet has leftover blank rows extending past your real data).`
+          : `That's a lot of coins! Click "Import all" if this matches the file you intended to import. Click Cancel if it looks wrong (e.g. you picked the wrong file, or the sheet has leftover blank rows extending past your real data).`
+      })
+      if (choice.response !== 1) {
+        diagLog(`[import] user canceled at large-import confirmation`)
+        return { inserted: 0, skipped: 0, warnings: [], canceled: true }
+      }
     }
 
     diagLog(`[import] starting ${kind} xlsx import from ${filePath} → collection_id=${collection.id}`)

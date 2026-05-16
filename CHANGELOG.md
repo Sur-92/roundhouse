@@ -1,5 +1,14 @@
 # Roundhouse Release Notes
 
+## v0.6.1 — 2026-05-16
+
+### Pre-import sanity prompt
+Picking an xlsx file with **5,000 or more data rows** now pops a native confirmation dialog before any inserts happen:
+
+> *This worksheet has 12,345 data rows. Click "Import all" if this matches the file you intended to import. Click Cancel if it looks wrong (e.g. you picked the wrong file, or the sheet has leftover blank rows extending past your real data).*
+
+This is the seatbelt warning that pairs with the 50K hard cap added in v0.6.0 — instead of finding out *after* a multi-second runaway, you find out *before*. Files under 5,000 rows import silently (no extra clicks).
+
 ## v0.6.0 — 2026-05-16
 
 A safety + tooling pass driven by the Surface user's runaway-import incident plus an explicit feature request.

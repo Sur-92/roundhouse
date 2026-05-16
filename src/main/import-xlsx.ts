@@ -41,6 +41,21 @@ class ImportLimitError extends Error {
   constructor(message: string) { super(message); this.name = 'ImportLimitError' }
 }
 
+/**
+ * Cheaply read just the data-row count of the first worksheet without
+ * parsing the file twice. Used by the IPC layer to prompt the user
+ * before committing to a large import.
+ */
+export async function peekXlsxRowCount(filePath: string): Promise<number> {
+  const wb = new ExcelJS.Workbook()
+  await wb.xlsx.readFile(filePath)
+  const ws = wb.worksheets[0]
+  if (!ws) return 0
+  // actualRowCount counts rows with cell values (vs rowCount which is
+  // the max touched index). Subtract 1 for the header row.
+  return Math.max(0, ws.actualRowCount - 1)
+}
+
 function logSheetBounds(ws: ExcelJS.Worksheet, label: string): void {
   // ws.lastRow is the row object for the last used row; .number is its
   // index. actualRowCount counts rows with cell values; rowCount is the
