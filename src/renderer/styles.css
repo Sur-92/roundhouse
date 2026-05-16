@@ -450,6 +450,38 @@ main#view {
   margin-bottom: 1.25rem;
 }
 
+/* Find & Replace dialog (issue #18). */
+.fr-radio-row {
+  display: flex;
+  gap: 1.25rem;
+  padding: 0.4rem 0;
+}
+.fr-radio-row label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+.fr-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+}
+.fr-results {
+  max-height: 40vh;
+  overflow-y: auto;
+  margin-top: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem;
+  background: rgba(0, 0, 0, 0.18);
+}
+.fr-preview-table { font-size: 0.85rem; }
+.fr-preview-table .fr-before { color: var(--text-dim); text-decoration: line-through; }
+.fr-preview-table .fr-arrow  { color: var(--muted); text-align: center; }
+.fr-preview-table .fr-after  { color: var(--accent); font-weight: 500; }
+
 /* Settings → Data section (Backup, etc.). */
 .data-section { margin-top: 1.5rem; }
 

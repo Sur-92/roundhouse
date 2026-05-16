@@ -2,7 +2,10 @@ import { escapeHtml, on } from '../lib/dom'
 import { openDialog, confirmDialog } from '../lib/dialog'
 import { fieldHtml, readForm } from '../lib/forms'
 import { loadLookups } from '../lib/lookups'
-import type { CollectionKind, LookupKind, LookupRow, LookupInput } from '@shared/types'
+import type {
+  CollectionKind, LookupKind, LookupRow, LookupInput,
+  FindReplaceField, FindReplaceOptions, FindReplaceResult
+} from '@shared/types'
 
 interface SectionConfig {
   kind: LookupKind
@@ -407,9 +410,14 @@ function hydrateDataSection(host: HTMLElement): void {
       </header>
       <div class="data-actions">
         <button class="btn primary" data-action="backup">📦 Backup…</button>
-        <span class="muted small">Backups include: items, books/sets, photos, videos, settings/lookups. They do <em>not</em> include the app itself — reinstall Roundhouse on a new machine, then restore your data.</span>
+        <button class="btn" data-action="find-replace">🔎 Find &amp; Replace…</button>
+        <span class="muted small">Backups include: items, books/sets, photos, videos, settings/lookups. They do <em>not</em> include the app itself. Find &amp; Replace bulk-edits a field (Source, Name, Country, etc.) across many items at once — preview before applying.</span>
       </div>
     </section>`
+
+  host.querySelector<HTMLButtonElement>('[data-action="find-replace"]')!.addEventListener('click', () => {
+    void openFindReplaceDialog()
+  })
 
   host.querySelector<HTMLButtonElement>('[data-action="backup"]')!.addEventListener('click', async () => {
     const btn = host.querySelector<HTMLButtonElement>('[data-action="backup"]')!
@@ -445,6 +453,215 @@ function hydrateDataSection(host: HTMLElement): void {
         submitLabel: 'OK',
         cancelLabel: 'Close'
       })
+    }
+  })
+}
+
+// ─── Find & Replace dialog (resolves #18) ────────────────────────
+
+/** Field options per collection scope. "Both" is the intersection. */
+const FR_FIELDS_TRAINS: ReadonlyArray<{ value: FindReplaceField; label: string }> = [
+  { value: 'name',             label: 'Name' },
+  { value: 'manufacturer',     label: 'Manufacturer' },
+  { value: 'model_number',     label: 'Model number' },
+  { value: 'road_name',        label: 'Road name' },
+  { value: 'era',              label: 'Era' },
+  { value: 'source',           label: 'Source' },
+  { value: 'storage_location', label: 'Storage location' },
+  { value: 'notes',            label: 'Notes' }
+]
+const FR_FIELDS_COINS: ReadonlyArray<{ value: FindReplaceField; label: string }> = [
+  { value: 'name',             label: 'Name' },
+  { value: 'country',          label: 'Country' },
+  { value: 'denomination',     label: 'Denomination' },
+  { value: 'mint_mark',        label: 'Mint mark' },
+  { value: 'source',           label: 'Source' },
+  { value: 'storage_location', label: 'Storage location' },
+  { value: 'notes',            label: 'Notes' }
+]
+const FR_FIELDS_BOTH: ReadonlyArray<{ value: FindReplaceField; label: string }> = [
+  { value: 'name',             label: 'Name' },
+  { value: 'source',           label: 'Source' },
+  { value: 'storage_location', label: 'Storage location' },
+  { value: 'notes',            label: 'Notes' }
+]
+
+function fieldsForScope(scope: 'trains' | 'coins' | 'both'): ReadonlyArray<{ value: FindReplaceField; label: string }> {
+  if (scope === 'trains') return FR_FIELDS_TRAINS
+  if (scope === 'coins') return FR_FIELDS_COINS
+  return FR_FIELDS_BOTH
+}
+
+async function openFindReplaceDialog(): Promise<void> {
+  const defaultScope: 'trains' | 'coins' | 'both' =
+    (sessionStorage.getItem('settings.kind') === 'coins') ? 'coins' : 'trains'
+
+  const body = document.createElement('div')
+  body.className = 'rh-form'
+  body.innerHTML = `
+    <p class="dialog-message muted small">Bulk-edit a text field across many items at once. Always click <strong>Preview</strong> first to see what will change.</p>
+
+    <label class="field">
+      <span class="field-label">Collection</span>
+      <div class="fr-radio-row">
+        <label><input type="radio" name="fr-scope" value="trains"${defaultScope === 'trains' ? ' checked' : ''}> Trains</label>
+        <label><input type="radio" name="fr-scope" value="coins"${defaultScope === 'coins' ? ' checked' : ''}> Coins</label>
+        <label><input type="radio" name="fr-scope" value="both"> Both</label>
+      </div>
+    </label>
+
+    <div class="rh-form-grid">
+      <label class="field">
+        <span class="field-label">Field</span>
+        <select id="fr-field" name="fr-field"></select>
+      </label>
+      <label class="field">
+        <span class="field-label">Match type</span>
+        <select id="fr-matchtype" name="fr-matchtype">
+          <option value="substring" selected>Contains (substring)</option>
+          <option value="whole">Whole field equals</option>
+          <option value="regex">Regular expression</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="field">
+      <span class="field-label">Find</span>
+      <input id="fr-find" name="fr-find" type="text" autocomplete="off" required />
+      <span class="field-hint muted small">Tip: with "Regular expression" match type, use <code>^\\d+$</code> to match purely numeric values, or <code>\\d</code> for any field containing digits.</span>
+    </label>
+
+    <label class="field">
+      <span class="field-label">Replace with</span>
+      <input id="fr-replace" name="fr-replace" type="text" autocomplete="off" placeholder="(leave blank to clear the field on matching items)" />
+    </label>
+
+    <label class="field field-check"><input type="checkbox" id="fr-case" /> <span class="field-label">Case-sensitive</span></label>
+
+    <div class="fr-actions">
+      <button type="button" class="btn" data-action="preview">🔍 Preview</button>
+      <span class="muted small" data-fr-status></span>
+    </div>
+
+    <div id="fr-results" class="fr-results" hidden></div>
+  `
+
+  const $scopes = body.querySelectorAll<HTMLInputElement>('input[name="fr-scope"]')
+  const $field = body.querySelector<HTMLSelectElement>('#fr-field')!
+  const $matchType = body.querySelector<HTMLSelectElement>('#fr-matchtype')!
+  const $find = body.querySelector<HTMLInputElement>('#fr-find')!
+  const $replace = body.querySelector<HTMLInputElement>('#fr-replace')!
+  const $case = body.querySelector<HTMLInputElement>('#fr-case')!
+  const $preview = body.querySelector<HTMLButtonElement>('[data-action="preview"]')!
+  const $status = body.querySelector<HTMLElement>('[data-fr-status]')!
+  const $results = body.querySelector<HTMLElement>('#fr-results')!
+
+  const getScope = (): 'trains' | 'coins' | 'both' => {
+    const checked = Array.from($scopes).find((r) => r.checked)
+    return (checked?.value as 'trains' | 'coins' | 'both') || 'trains'
+  }
+
+  const refreshFieldOptions = (): void => {
+    const fields = fieldsForScope(getScope())
+    const current = $field.value
+    $field.innerHTML = fields.map((f) =>
+      `<option value="${f.value}"${f.value === current ? ' selected' : ''}>${escapeHtml(f.label)}</option>`
+    ).join('')
+    if (!$field.value && fields.some((f) => f.value === 'source')) $field.value = 'source'
+  }
+  refreshFieldOptions()
+  $scopes.forEach((r) => r.addEventListener('change', () => {
+    refreshFieldOptions()
+    $results.hidden = true
+    $status.textContent = ''
+  }))
+  ;[$field, $matchType, $find, $replace, $case].forEach((el) =>
+    el.addEventListener('input', () => { $results.hidden = true; $status.textContent = '' })
+  )
+
+  let lastPreview: FindReplaceResult | null = null
+
+  const buildOpts = (apply: boolean): FindReplaceOptions => ({
+    scope: getScope(),
+    field: $field.value as FindReplaceField,
+    find: $find.value,
+    replace: $replace.value,
+    matchType: $matchType.value as 'substring' | 'whole' | 'regex',
+    caseSensitive: $case.checked,
+    apply
+  })
+
+  $preview.addEventListener('click', async () => {
+    if (!$find.value) { $find.focus(); return }
+    $status.textContent = 'Searching…'
+    $results.hidden = true
+    try {
+      const r = await window.roundhouse.data.findReplace(buildOpts(false))
+      lastPreview = r
+      $status.textContent = `${r.matchCount.toLocaleString()} match${r.matchCount === 1 ? '' : 'es'}`
+      $results.hidden = false
+      if (r.matchCount === 0) {
+        $results.innerHTML = `<p class="muted">No items matched.</p>`
+        return
+      }
+      const rows = r.samples.map((s) => `
+        <tr>
+          <td class="col-mono">${s.id}</td>
+          <td>${escapeHtml(s.name)}</td>
+          <td class="fr-before">${escapeHtml(String(s.before ?? ''))}</td>
+          <td class="fr-arrow">→</td>
+          <td class="fr-after">${escapeHtml(String(s.after ?? ''))}</td>
+        </tr>`).join('')
+      const more = r.matchCount > r.samples.length
+        ? `<p class="muted small">Showing first ${r.samples.length} of ${r.matchCount.toLocaleString()} matches.</p>` : ''
+      $results.innerHTML = `
+        <table class="rh-table fr-preview-table">
+          <thead><tr><th>id</th><th>Name</th><th>Before</th><th></th><th>After</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        ${more}`
+    } catch (err) {
+      $status.textContent = ''
+      $results.hidden = false
+      $results.innerHTML = `<p class="err">${escapeHtml(String(err))}</p>`
+    }
+  })
+
+  await openDialog({
+    title: 'Find & Replace',
+    body,
+    submitLabel: 'Apply',
+    cancelLabel: 'Close',
+    destructive: true,
+    onSubmit: async () => {
+      if (!$find.value) { $find.focus(); return false }
+      if (!lastPreview || lastPreview.matchCount === 0) {
+        $status.textContent = 'Click Preview first to see what will change.'
+        return false
+      }
+      const proceed = await confirmDialog(
+        `Replace ${lastPreview.matchCount.toLocaleString()} item${lastPreview.matchCount === 1 ? '' : 's'}? This can't be undone (other than by restoring from a backup).`,
+        { title: 'Apply Find & Replace?', destructive: true }
+      )
+      if (!proceed) return false
+      try {
+        const r = await window.roundhouse.data.findReplace(buildOpts(true))
+        await openDialog({
+          title: 'Find & Replace complete',
+          body: `<p class="dialog-message">Updated <strong>${r.matchCount.toLocaleString()}</strong> item${r.matchCount === 1 ? '' : 's'}.</p>`,
+          submitLabel: 'OK',
+          cancelLabel: 'Close'
+        })
+        return true
+      } catch (err) {
+        await openDialog({
+          title: 'Find & Replace failed',
+          body: `<p class="dialog-message">${escapeHtml(String(err))}</p>`,
+          submitLabel: 'OK',
+          cancelLabel: 'Close'
+        })
+        return false
+      }
     }
   })
 }

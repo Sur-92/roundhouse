@@ -1,5 +1,26 @@
 # Roundhouse Release Notes
 
+## v0.6.0 — 2026-05-16
+
+A safety + tooling pass driven by the Surface user's runaway-import incident plus an explicit feature request.
+
+### Find & Replace (resolves #18)
+- **Settings → Data → 🔎 Find & Replace…** lets you bulk-edit a text field across many items in one shot.
+- Pick a **scope** (Trains / Coins / Both), a **field** (Name, Source, Country, Manufacturer, Model #, Road name, Era, Denomination, Mint mark, Storage location, Notes), and a **match type** (Contains / Whole field equals / Regular expression). Case-sensitivity toggle. Special characters in your input are properly escaped — no SQL injection or LIKE wildcard surprises.
+- **Preview** first: see the match count and a table of up to 20 rows with `before → after` rendered (strikethrough on old, accent color on new). **Apply** is gated behind the preview and a destructive confirmation.
+- The whole UPDATE runs in a transaction — atomic, rolls back on any error.
+- Powers exactly the Surface user's ask: scope=Coins, field=Source, match=regex, find=`\d`, replace=`Ted Lee` → fixes every coin whose Source got a number stuffed into it.
+
+### Import safety net (after the runaway-import incident)
+Two layers, both at the start of every xlsx import:
+- **Upfront refusal** if the worksheet's `rowCount` exceeds **100,000** — the user gets a clear message ("the file probably has hidden blank-but-formatted rows extending way past your data") instead of a silent runaway.
+- **Hard cap of 50,000 inserts** inside the import transaction. If exceeded mid-import, the transaction rolls back to a zero-state and reports what happened (with the last row processed). No more "I imported a tiny file and got a million records."
+- **Diagnostic logging** to diag.log on every import: sheet bounds (`rowCount` / `actualRowCount` / `lastRow`), plus a progress line every 500 inserts. Next "wrong count" report is debuggable from the log alone.
+- Header skip tightened from `rowNumber === 1` to `<= 1` (defensive against any weird row-0 case).
+
+### New utility: undo-runaway-import script
+- `scripts/undo_runaway_import.py` — surgical recovery tool for already-runaway DBs (in case anyone hit the bug before v0.6.0). Dry-run by default, identifies suspicious burst windows + empty-content rows, only deletes after `--apply`. Used internally to clean up the Surface user's 1M-row file → cleaned back to 1,888 items in 22 seconds.
+
 ## v0.5.5 — 2026-05-13
 
 A small quality-of-life batch driven by Surface-user feedback.

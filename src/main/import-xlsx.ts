@@ -19,11 +19,37 @@
 
 import ExcelJS from 'exceljs'
 import type Database from 'better-sqlite3'
+import { diagLog } from './diag'
 
 export interface ImportResult {
   inserted: number
   skipped: number
   warnings: string[]
+}
+
+/**
+ * Sanity caps. The Surface user once reported a "small Excel file"
+ * importing 1M+ records, almost certainly because the sheet's bounds
+ * were silently enormous (a formula or fill-down on a detected column
+ * passes the per-row skip check). These caps make that failure mode
+ * loud + safe instead of catastrophic.
+ */
+const MAX_SHEET_ROWS = 100_000   // Refuse upfront — likely a malformed sheet
+const MAX_INSERTS = 50_000        // Abort mid-import; the txn rolls back
+
+class ImportLimitError extends Error {
+  constructor(message: string) { super(message); this.name = 'ImportLimitError' }
+}
+
+function logSheetBounds(ws: ExcelJS.Worksheet, label: string): void {
+  // ws.lastRow is the row object for the last used row; .number is its
+  // index. actualRowCount counts rows with cell values; rowCount is the
+  // max index touched (including blanks). Big mismatches between the
+  // two are a tell that the sheet has phantom-formatting rows.
+  const last = ws.lastRow?.number ?? 0
+  diagLog(
+    `[import] sheet bounds (${label}): rowCount=${ws.rowCount} actualRowCount=${ws.actualRowCount} lastRow.number=${last}`
+  )
 }
 
 // ─── Trains ──────────────────────────────────────────────────────
@@ -125,6 +151,16 @@ export async function importTrainsXlsx(
   if (!ws) {
     return { inserted: 0, skipped: 0, warnings: ['No worksheet found in file.'] }
   }
+  logSheetBounds(ws, 'trains')
+  if (ws.rowCount > MAX_SHEET_ROWS) {
+    return {
+      inserted: 0,
+      skipped: 0,
+      warnings: [
+        `This worksheet reports ${ws.rowCount.toLocaleString()} rows — that's almost certainly wrong (the file probably has hidden blank-but-formatted rows extending way past your data). Open the file in Excel, select rows below your last real data row, delete them, save, and try again.`
+      ]
+    }
+  }
 
   // Detect column indexes from header row. Default fallback is the
   // legacy column order from the Python script.
@@ -160,7 +196,12 @@ export async function importTrainsXlsx(
 
   const txn = db.transaction(() => {
     ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      if (rowNumber === 1) return // header
+      if (rowNumber <= 1) return // header (and any phantom row 0)
+      if (inserted >= MAX_INSERTS) {
+        throw new ImportLimitError(
+          `Aborted at ${MAX_INSERTS.toLocaleString()} inserts — the sheet appears to have far more data rows than expected (last row processed: ${rowNumber}). The transaction was rolled back; no items were added. Check the file for a column with fill-down values extending past your real data.`
+        )
+      }
       const cells = row.values as unknown[]
       const itemRaw = clean(cells[idx.item])
       if (!itemRaw) {
@@ -190,9 +231,21 @@ export async function importTrainsXlsx(
         source, notes
       )
       inserted += 1
+      if (inserted % 500 === 0) {
+        diagLog(`[import] trains progress: ${inserted} inserted at row ${rowNumber}`)
+      }
     })
   })
-  txn()
+
+  try {
+    txn()
+  } catch (err) {
+    if (err instanceof ImportLimitError) {
+      diagLog(`[import] trains aborted: ${err.message}`)
+      return { inserted: 0, skipped: 0, warnings: [err.message] }
+    }
+    throw err
+  }
 
   if (inserted === 0) {
     warnings.push('No data rows recognized. Make sure the first sheet has an "Item" column with item names.')
@@ -267,6 +320,16 @@ export async function importCoinsXlsx(
   if (!ws) {
     return { inserted: 0, skipped: 0, warnings: ['No worksheet found in file.'] }
   }
+  logSheetBounds(ws, 'coins')
+  if (ws.rowCount > MAX_SHEET_ROWS) {
+    return {
+      inserted: 0,
+      skipped: 0,
+      warnings: [
+        `This worksheet reports ${ws.rowCount.toLocaleString()} rows — that's almost certainly wrong (the file probably has hidden blank-but-formatted rows extending way past your data). Open the file in Excel, select rows below your last real data row, delete them, save, and try again.`
+      ]
+    }
+  }
 
   const header = ws.getRow(1).values as unknown[]
   const idx = headerIndex(header, {
@@ -302,7 +365,12 @@ export async function importCoinsXlsx(
 
   const txn = db.transaction(() => {
     ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      if (rowNumber === 1) return // header
+      if (rowNumber <= 1) return // header (and any phantom row 0)
+      if (inserted >= MAX_INSERTS) {
+        throw new ImportLimitError(
+          `Aborted at ${MAX_INSERTS.toLocaleString()} inserts — the sheet appears to have far more data rows than expected (last row processed: ${rowNumber}). The transaction was rolled back; no coins were added. Check the file for a column with fill-down values extending past your real data.`
+        )
+      }
       const cells = row.values as unknown[]
       const country = clean(cells[idx.country])
       const typeRaw = cells[idx.type]
@@ -331,9 +399,21 @@ export async function importCoinsXlsx(
         valueCents, notes
       )
       inserted += 1
+      if (inserted % 500 === 0) {
+        diagLog(`[import] coins progress: ${inserted} inserted at row ${rowNumber}`)
+      }
     })
   })
-  txn()
+
+  try {
+    txn()
+  } catch (err) {
+    if (err instanceof ImportLimitError) {
+      diagLog(`[import] coins aborted: ${err.message}`)
+      return { inserted: 0, skipped: 0, warnings: [err.message] }
+    }
+    throw err
+  }
 
   if (inserted === 0) {
     warnings.push('No data rows recognized. Make sure the first sheet has Country and/or Type columns populated.')

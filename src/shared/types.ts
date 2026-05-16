@@ -178,6 +178,51 @@ export interface ImportResult {
   canceled?: boolean;
 }
 
+/** Find & Replace tool — bulk-edit a text column across many items at once.
+ *  Resolves issue #18 (Surface user wanted "find Source values that are
+ *  numbers, replace with 'Ted Lee'"). */
+
+/** Columns the user is allowed to find/replace on. Allowlisted in the
+ *  main process to prevent arbitrary-column updates. */
+export type FindReplaceField =
+  | 'name' | 'source' | 'notes' | 'storage_location'
+  | 'manufacturer' | 'model_number' | 'road_name' | 'era'
+  | 'country' | 'denomination' | 'mint_mark'
+
+export interface FindReplaceOptions {
+  /** Restrict to one collection kind, or 'both' for everywhere. */
+  scope: CollectionKind | 'both'
+  field: FindReplaceField
+  find: string
+  replace: string
+  /** Substring (default): row matches if find is anywhere in field.
+   *  Whole-field: row matches only if find equals the field exactly.
+   *  Regex: find is parsed as a JS regular expression. */
+  matchType: 'substring' | 'whole' | 'regex'
+  caseSensitive: boolean
+  /** false → preview only (return samples + count, no DB write).
+   *  true → run the UPDATE in a transaction and return the actual changed count. */
+  apply: boolean
+}
+
+export interface FindReplaceMatch {
+  id: number
+  /** Current value of the field on this row (so the user can see exactly what's about to change). */
+  before: string | null
+  /** What the value WILL become after replacement. */
+  after: string | null
+  /** Item name, for context in the preview list. */
+  name: string
+}
+
+export interface FindReplaceResult {
+  matchCount: number
+  /** Up to ~20 sample rows for the preview UI. */
+  samples: FindReplaceMatch[]
+  /** True when apply ran (writes happened). False on preview. */
+  applied: boolean
+}
+
 /** Result of a Backup → .zip operation. */
 export interface BackupResult {
   zipPath: string;
@@ -275,6 +320,9 @@ export interface RoundhouseApi {
   };
   backup: {
     create(): Promise<BackupResult>;
+  };
+  data: {
+    findReplace(opts: FindReplaceOptions): Promise<FindReplaceResult>;
   };
   print: {
     current(): Promise<void>;

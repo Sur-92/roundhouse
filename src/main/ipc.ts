@@ -10,6 +10,9 @@ import { diagLog, getDiagLogPath, openDiagLogInEditor, resetDiagLog } from './di
 import { importTrainsXlsx, importCoinsXlsx, type ImportResult } from './import-xlsx'
 import { createBackup, type BackupResult } from './backup'
 import type {
+  FindReplaceOptions, FindReplaceResult, FindReplaceField, FindReplaceMatch
+} from '@shared/types'
+import type {
   Collection, CollectionInput, CollectionKind,
   TrainSet, TrainSetInput,
   Item, ItemInput, ItemFilter,
@@ -443,6 +446,116 @@ export function registerIpc(): void {
     }
     diagLog(`[backup] starting → ${result.filePath}`)
     return createBackup(result.filePath)
+  })
+
+  // ─── Find & Replace (data tool — resolves #18) ────────
+  // Bulk-edit a text column on items. Preview first (apply: false)
+  // returns count + up to 20 samples; Apply (apply: true) runs the
+  // UPDATE in a transaction. Field name is allowlisted to prevent
+  // arbitrary-column writes.
+  ipcMain.handle('data:findReplace', (_e, opts: FindReplaceOptions): FindReplaceResult => {
+    const ALLOWED_FIELDS: readonly FindReplaceField[] = [
+      'name', 'source', 'notes', 'storage_location',
+      'manufacturer', 'model_number', 'road_name', 'era',
+      'country', 'denomination', 'mint_mark'
+    ]
+    if (!ALLOWED_FIELDS.includes(opts.field)) {
+      throw new Error(`Find & Replace: field "${opts.field}" is not editable.`)
+    }
+    if (typeof opts.find !== 'string' || opts.find.length === 0) {
+      throw new Error('Find & Replace: "find" must be a non-empty string.')
+    }
+    if (typeof opts.replace !== 'string') {
+      throw new Error('Find & Replace: "replace" must be a string (empty string is OK).')
+    }
+
+    const col = opts.field // safe — allowlisted
+
+    // Build the WHERE clause. SQL-pushable cases first (substring/whole);
+    // regex falls back to fetch-then-filter in JS.
+    const whereParts: string[] = []
+    const whereParams: unknown[] = []
+    if (opts.scope === 'trains' || opts.scope === 'coins') {
+      whereParts.push('collection_id IN (SELECT id FROM collections WHERE kind = ?)')
+      whereParams.push(opts.scope)
+    }
+    whereParts.push(`${col} IS NOT NULL AND ${col} <> ''`)
+
+    let jsFilter: ((value: string) => boolean) | null = null
+    let jsReplace: ((value: string) => string) | null = null
+
+    if (opts.matchType === 'regex') {
+      let re: RegExp
+      try {
+        re = new RegExp(opts.find, opts.caseSensitive ? 'g' : 'gi')
+      } catch (err) {
+        throw new Error(`Find & Replace: invalid regex — ${String(err)}`)
+      }
+      jsFilter = (v) => { re.lastIndex = 0; return re.test(v) }
+      jsReplace = (v) => v.replace(re, opts.replace)
+    } else if (opts.matchType === 'whole') {
+      if (opts.caseSensitive) {
+        whereParts.push(`${col} = ?`)
+        whereParams.push(opts.find)
+      } else {
+        whereParts.push(`LOWER(${col}) = LOWER(?)`)
+        whereParams.push(opts.find)
+      }
+      jsReplace = () => opts.replace // whole-field replace = the replacement string verbatim
+    } else {
+      // substring (default)
+      if (opts.caseSensitive) {
+        // SQLite GLOB is case-sensitive; need to escape * ? [ ] in user input.
+        const glob = '*' + opts.find.replace(/[*?[\]]/g, '[$&]') + '*'
+        whereParts.push(`${col} GLOB ?`)
+        whereParams.push(glob)
+      } else {
+        // SQLite LIKE is case-insensitive for ASCII by default.
+        const like = '%' + opts.find.replace(/[%_\\]/g, '\\$&') + '%'
+        whereParts.push(`${col} LIKE ? ESCAPE '\\'`)
+        whereParams.push(like)
+      }
+      jsReplace = (v) => {
+        if (opts.caseSensitive) return v.split(opts.find).join(opts.replace)
+        // Case-insensitive substring replace.
+        const re = new RegExp(opts.find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+        return v.replace(re, opts.replace)
+      }
+    }
+
+    const whereSql = whereParts.join(' AND ')
+    const selectSql = `SELECT id, name, ${col} AS field_value FROM items WHERE ${whereSql} ORDER BY id`
+
+    type Row = { id: number; name: string; field_value: string }
+    let rows = db.prepare(selectSql).all(...whereParams) as Row[]
+
+    // Apply JS-side filter if regex.
+    if (jsFilter) rows = rows.filter((r) => jsFilter!(r.field_value))
+
+    const matchCount = rows.length
+    const samples: FindReplaceMatch[] = rows.slice(0, 20).map((r) => ({
+      id: r.id,
+      name: r.name,
+      before: r.field_value,
+      after: jsReplace!(r.field_value)
+    }))
+
+    if (!opts.apply) {
+      diagLog(`[findReplace] preview: field=${col} scope=${opts.scope} type=${opts.matchType} matched=${matchCount}`)
+      return { matchCount, samples, applied: false }
+    }
+
+    // Apply: compute the new value per matched row and UPDATE in a transaction.
+    diagLog(`[findReplace] applying: field=${col} scope=${opts.scope} type=${opts.matchType} matched=${matchCount}`)
+    const update = db.prepare(`UPDATE items SET ${col} = ? WHERE id = ?`)
+    const txn = db.transaction(() => {
+      for (const r of rows) {
+        const next = jsReplace!(r.field_value)
+        if (next !== r.field_value) update.run(next, r.id)
+      }
+    })
+    txn()
+    return { matchCount, samples, applied: true }
   })
 
   ipcMain.handle('print:current', (e: IpcMainInvokeEvent) => {

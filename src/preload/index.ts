@@ -8,7 +8,8 @@ import type {
   FeedbackStatus, FeedbackIssue, FeedbackInput,
   LookupKind, LookupRow, LookupInput,
   EbayConfig, EbaySearchResult,
-  ImportResult, BackupResult
+  ImportResult, BackupResult,
+  FindReplaceOptions, FindReplaceResult
 } from '@shared/types'
 
 const api: RoundhouseApi = {
@@ -97,6 +98,10 @@ const api: RoundhouseApi = {
   },
   backup: {
     create: () => ipcRenderer.invoke('backup:create') as Promise<BackupResult>
+  },
+  data: {
+    findReplace: (opts: FindReplaceOptions) =>
+      ipcRenderer.invoke('data:findReplace', opts) as Promise<FindReplaceResult>
   },
   print: {
     current: () => ipcRenderer.invoke('print:current') as Promise<void>
